@@ -22,12 +22,12 @@ export default function ProfileLayout({
         We use an absolute div fixed to the viewport with object-cover equivalent behavior (bg-cover).
       */}
       <div
-        className="fixed inset-0 z-[-1] bg-cover bg-center bg-no-repeat transition-all duration-500"
+        className="fixed inset-0 z-[-10] pointer-events-none bg-cover bg-center bg-no-repeat transition-all duration-500"
         style={{ backgroundImage: `url('${bgUrl}')` }}
       />
 
       {/* Main Content Wrapper */}
-      <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-8">
+      <main className="relative z-10 flex min-h-screen flex-col items-center justify-center p-4 sm:p-8">
         
         {/* 
           Glassmorphism Container

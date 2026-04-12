@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/utils/supabase';
 
@@ -31,7 +32,8 @@ const AuthContext = createContext<AuthContextType>({
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<Profil
+  const router = useRouter();e | null>(null);
   const [loading, setLoading] = useState(true);
 
   const createProfile = async (userId: string, email: string): Promise<Profile | null> => {
@@ -162,12 +164,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async () => {
+    setLoading(true);
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error('Error signing out:', error.message);
+      setLoading(false);
     } else {
       setUser(null);
       setProfile(null);
+      setLoading(false);
+      router.push('/login'); // Force redirect
     }
   };
 
