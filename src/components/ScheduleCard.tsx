@@ -134,9 +134,14 @@ export default function ScheduleCard({
         <div className="flex-1">
           <div className="flex items-start justify-between sm:justify-start sm:gap-4 mb-2">
             {/* Large Bold Subject */}
-            <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-              {subject}
-            </h2>
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                {subject}
+              </h2>
+              <p className="mt-1 block sm:hidden text-sm text-slate-600 dark:text-slate-300">
+                {formattedDate} · {formattedStart} - {formattedEnd}
+              </p>
+            </div>
             {profile?.role === 'admin' && (
               <button 
                 onClick={async () => {
