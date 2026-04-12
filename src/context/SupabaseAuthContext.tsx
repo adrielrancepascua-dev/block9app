@@ -87,6 +87,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (err) {
       console.error('Unexpected error fetching profile:', err);
       setProfile(null);
+    } finally {
+      // CRITICAL: Always clear loading state, whether fetch succeeds or fails
+      setLoading(false);
     }
   };
 
@@ -104,12 +107,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(currentUser);
         
         if (currentUser) {
+          // fetchProfile has its own finally block that sets loading to false
           await fetchProfile(currentUser.id, currentUser.email);
+        } else {
+          // CRITICAL: No session found - must explicitly clear loading
+          setLoading(false);
         }
       } catch (err) {
         console.error('Initialization auth error:', err);
-      } finally {
-        setLoading(false);
+        setLoading(false); // Ensure loading stops on error too
       }
     };
 
@@ -123,14 +129,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setUser(currentUser);
           
           if (currentUser) {
+            // fetchProfile has its own finally block that sets loading to false
             await fetchProfile(currentUser.id, currentUser.email);
           } else {
+            // CRITICAL: User logged out or no session - clear everything and stop loading
             setProfile(null);
+            setLoading(false);
           }
         } catch (err) {
           console.error('Auth change handling error:', err);
-        } finally {
-          setLoading(false);
+          setLoading(false); // Ensure loading stops on error too
         }
       }
     );
