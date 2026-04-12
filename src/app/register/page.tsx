@@ -2,11 +2,8 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/utils/supabase";
 import { toast } from "sonner";
 import { Mail, Lock, User, Code } from "lucide-react";
-
-const SECTION_SECRET_CODE = "BLOCK9_2026";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -41,8 +38,6 @@ export default function RegisterPage() {
 
     if (!formData.secretCode.trim()) {
       newErrors.secretCode = "Section secret code is required";
-    } else if (formData.secretCode !== SECTION_SECRET_CODE) {
-      newErrors.secretCode = "Invalid section secret code";
     }
 
     setErrors(newErrors);
@@ -59,55 +54,34 @@ export default function RegisterPage() {
     setIsSubmitting(true);
 
     try {
-      // Sign up user with Supabase Auth
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email: formData.email.trim(),
-        password: formData.password,
+      const response = await fetch("/api/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fullName: formData.fullName.trim(),
+          email: formData.email.trim(),
+          password: formData.password,
+          secretCode: formData.secretCode.trim(),
+        }),
       });
 
-      if (signUpError) {
-        if (signUpError.message.includes("already registered")) {
-          toast.error("Email already registered. Please log in instead.");
-        } else {
-          toast.error(`Sign up failed: ${signUpError.message}`);
-        }
+      const result = await response.json().catch(() => ({ message: "Registration failed." }));
+
+      if (!response.ok) {
+        toast.error(result.message || "Sign up failed. Please try again.");
         setIsSubmitting(false);
         return;
       }
 
-      const userId = data?.user?.id;
-
-      if (!userId) {
-        toast.error("Failed to create account. Please try again.");
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Create profile in profiles table
-      const { error: profileError } = await supabase.from("profiles").insert({
-        user_id: userId,
-        name: formData.fullName.trim(),
-        role: "student",
-        custom_bg_url: null,
-        created_at: new Date().toISOString(),
-      });
-
-      if (profileError) {
-        console.error("Error creating profile:", profileError.message);
-        toast.error("Account created, but profile setup failed. Please contact support.");
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Success
-      toast.success("Account created! Please verify your email");
+      toast.success("Account created! You can sign in now.");
       setFormData({ fullName: "", email: "", password: "", secretCode: "" });
       setErrors({});
 
-      // Redirect to login
       setTimeout(() => {
         router.push("/login");
-      }, 2000);
+      }, 1200);
     } catch (err: any) {
       console.error("Unexpected error during registration:", err.message);
       toast.error("An unexpected error occurred. Please try again.");
@@ -321,7 +295,7 @@ export default function RegisterPage() {
         {/* Info Box */}
         <div className="mt-6 rounded-lg border border-blue-400/30 bg-blue-500/10 p-3">
           <p className="text-xs text-blue-200">
-            <strong>💡 Tip:</strong> You'll receive a verification email after signup. Check your inbox to activate your account.
+            <strong>Tip:</strong> Use your class section secret code to create an account, then sign in.
           </p>
         </div>
       </div>
