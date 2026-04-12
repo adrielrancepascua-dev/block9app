@@ -27,7 +27,7 @@ export default function ProfileLayout({
       />
 
       {/* Main Content Wrapper */}
-      <main className="relative z-10 flex min-h-screen flex-col items-center justify-center p-4 sm:p-8">
+      <main className="relative z-10 flex min-h-screen flex-col items-center justify-center p-3 sm:p-8">
         
         {/* 
           Glassmorphism Container
@@ -35,7 +35,7 @@ export default function ProfileLayout({
           - backdrop-blur-md: Medium blur behind the container
           - border border-white/20: Subtle translucent border
         */}
-        <div className="w-full max-w-5xl rounded-2xl bg-white/10 p-6 backdrop-blur-md border border-white/20 shadow-2xl">
+        <div className="w-full max-w-5xl rounded-xl border border-white/20 bg-white/10 p-3 shadow-2xl backdrop-blur-md sm:rounded-2xl sm:p-6">
           {children}
         </div>
 

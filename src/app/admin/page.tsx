@@ -87,10 +87,10 @@ export default function AdminPage() {
 
   return (
     <ProfileLayout>
-      <div className="w-full space-y-8">
+      <div className="w-full space-y-6 sm:space-y-8">
         {/* Page Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-800 drop-shadow-md dark:text-white">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl font-bold text-slate-800 drop-shadow-md dark:text-white sm:text-3xl">
             Admin Dashboard
           </h1>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-200">
@@ -99,9 +99,7 @@ export default function AdminPage() {
         </div>
 
         {/* Add Schedule Form */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-          <AdminPanel />
-        </div>
+        <AdminPanel />
 
         {/* Existing Schedules List */}
         <div className="space-y-4">

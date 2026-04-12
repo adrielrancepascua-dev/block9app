@@ -33,7 +33,6 @@ const PASTEL_COLORS = [
 ];
 
 const CLEAR_VOTE_TARGET = 35;
-const CLEAR_VOTE_THRESHOLD = Math.ceil(CLEAR_VOTE_TARGET * 0.75);
 
 export default function FreedomWall() {
   const { user, profile } = useAuth();
@@ -57,7 +56,6 @@ export default function FreedomWall() {
 
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
   const clearProgress = Math.min(100, (clearVoteCount / CLEAR_VOTE_TARGET) * 100);
-  const canAdminClear = clearVoteCount >= CLEAR_VOTE_THRESHOLD;
 
   const getPostColor = (post: Post) => {
     if (post.profiles?.custom_bg_url && post.profiles.custom_bg_url.startsWith('#')) {
@@ -363,10 +361,6 @@ export default function FreedomWall() {
 
   const handleAdminClearAll = async () => {
     if (profile?.role !== 'admin') return;
-    if (!canAdminClear) {
-      setVoteError(`Need at least ${CLEAR_VOTE_THRESHOLD} votes before clearing.`);
-      return;
-    }
 
     const confirmed = confirm('Clear all Freedom Wall notes now? This cannot be undone.');
     if (!confirmed) return;
@@ -414,10 +408,10 @@ export default function FreedomWall() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-100px)]">
+    <div className="flex min-h-[calc(100dvh-11rem)] flex-col">
       {user && (
-        <div className="mb-6 rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800 shrink-0 relative z-20 overflow-visible">
-          <form onSubmit={handleSubmit} className="p-6">
+        <div className="relative z-20 mb-4 shrink-0 overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:mb-6 sm:rounded-2xl">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-6">
             {isRefreshing && (
               <p className="mb-3 text-xs text-slate-500">Refreshing posts...</p>
             )}
@@ -451,7 +445,7 @@ export default function FreedomWall() {
                 </div>
 
                 <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  Needs {CLEAR_VOTE_THRESHOLD} votes (75%) before admins can clear all notes.
+                  Vote progress is shown for transparency. Admins can clear the wall anytime.
                 </p>
 
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row">
@@ -468,10 +462,10 @@ export default function FreedomWall() {
                     <button
                       type="button"
                       onClick={handleAdminClearAll}
-                      disabled={!canAdminClear || isClearing}
+                      disabled={isClearing || posts.length === 0}
                       className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {isClearing ? 'Clearing wall...' : `Admin clear all (${CLEAR_VOTE_THRESHOLD}+ votes)`}
+                      {isClearing ? 'Clearing wall...' : 'Admin clear all now'}
                     </button>
                   )}
                 </div>
@@ -525,15 +519,15 @@ export default function FreedomWall() {
         </div>
       )}
 
-      <div className="relative flex-1 overflow-hidden rounded-xl border-8 border-amber-800/80 bg-[url('https://www.transparenttextures.com/patterns/cork-board.png')] bg-[#d4a88c] shadow-inner mb-8 min-h-[400px]">
+      <div className="relative mb-4 min-h-[460px] flex-1 overflow-hidden rounded-xl border-4 border-amber-800/80 bg-[url('https://www.transparenttextures.com/patterns/cork-board.png')] bg-[#d4a88c] shadow-inner sm:mb-8 sm:min-h-[400px] sm:border-8">
         <div className="absolute inset-0 overflow-auto">
           <div
-            className={`relative w-[200%] h-[150%] md:w-full md:h-full ${isPlacing ? 'cursor-crosshair' : ''}`}
+            className={`relative h-full w-full ${isPlacing ? 'cursor-crosshair' : ''}`}
             onClick={handleBoardPlacement}
           >
             {user && (
               <div
-                className="pointer-events-none absolute z-10 w-28 h-28 border-2 border-dashed border-slate-700/50 bg-white/40 p-2 text-[10px] text-slate-700 shadow-sm"
+                className="pointer-events-none absolute z-10 h-24 w-24 border-2 border-dashed border-slate-700/50 bg-white/40 p-2 text-[10px] text-slate-700 shadow-sm sm:h-28 sm:w-28"
                 style={{
                   top: `${draftPosition.y}%`,
                   left: `${draftPosition.x}%`,
@@ -557,7 +551,7 @@ export default function FreedomWall() {
                     if (isPlacing) return;
                     setSelectedPost(post);
                   }}
-                  className="absolute w-32 h-32 cursor-pointer shadow-md hover:shadow-xl transition-shadow p-3 flex flex-col group overflow-hidden"
+                  className="group absolute flex h-28 w-28 cursor-pointer flex-col overflow-hidden p-2.5 shadow-md transition-shadow hover:shadow-xl sm:h-32 sm:w-32 sm:p-3"
                   style={{
                     top: `${post.y_pos}%`,
                     left: `${post.x_pos}%`,
