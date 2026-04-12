@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/context/SupabaseAuthContext";
 import Navbar from "@/components/Navbar";
 import { Toaster } from 'sonner';
+import EnvWarning from '@/components/EnvWarning';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -43,6 +44,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <AuthProvider>
           <Navbar />
+          <EnvWarning />
           {children}
           <Toaster position="top-center" richColors />
         </AuthProvider>
