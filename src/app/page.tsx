@@ -15,6 +15,12 @@ interface Schedule {
   end_time: string;
 }
 
+interface AttendanceSummary {
+  going: string[];
+  late: string[];
+  absent: string[];
+}
+
 export default function Home() {
   const { user, profile, loading, signOut } = useAuth();
   const router = useRouter();
@@ -22,6 +28,9 @@ export default function Home() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [attendance, setAttendance] = useState<
     Record<string, "going" | "late" | "absent" | null>
+  >({});
+  const [attendanceSummary, setAttendanceSummary] = useState<
+    Record<string, AttendanceSummary>
   >({});
   const [isFetching, setIsFetching] = useState(true);
 
@@ -55,8 +64,11 @@ export default function Home() {
 
       const { data: attendanceData, error: attendanceError } = await supabase
         .from("attendance")
-        .select("schedule_id, status")
-        .eq("user_id", user?.id);
+        .select("schedule_id, status, user_id, profiles(name)")
+        .in(
+          "schedule_id",
+          (scheduleData || []).map((schedule) => schedule.id)
+        );
 
       if (attendanceError) throw attendanceError;
 
@@ -64,10 +76,30 @@ export default function Home() {
         string,
         "going" | "late" | "absent" | null
       > = {};
+      const attendanceSummaryMap: Record<string, AttendanceSummary> = {};
+
       attendanceData?.forEach((record: any) => {
-        attendanceMap[record.schedule_id] = record.status;
+        const status = record.status as "going" | "late" | "absent";
+        const displayName =
+          record.user_id === user?.id ? "You" : record.profiles?.name || "Guest";
+
+        if (record.user_id === user?.id) {
+          attendanceMap[record.schedule_id] = status;
+        }
+
+        if (!attendanceSummaryMap[record.schedule_id]) {
+          attendanceSummaryMap[record.schedule_id] = {
+            going: [],
+            late: [],
+            absent: [],
+          };
+        }
+
+        attendanceSummaryMap[record.schedule_id][status].push(displayName);
       });
+
       setAttendance(attendanceMap);
+      setAttendanceSummary(attendanceSummaryMap);
     } catch (err: any) {
       console.error("Error fetching dashboard data:", err.message);
     } finally {
@@ -133,6 +165,7 @@ export default function Home() {
                 start_time={sched.start_time}
                 end_time={sched.end_time}
                 initialStatus={attendance[sched.id] || null}
+                attendanceSummary={attendanceSummary[sched.id] || null}
               />
             ))
           )}

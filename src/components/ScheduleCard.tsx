@@ -14,7 +14,30 @@ export interface ScheduleCardProps {
   start_time: string;
   end_time: string;
   initialStatus: AttendanceStatus;
+  attendanceSummary?: {
+    going: string[];
+    late: string[];
+    absent: string[];
+  } | null;
 }
+
+const statusMeta = {
+  going: {
+    label: 'Going',
+    barClass: 'bg-emerald-500',
+    dotClass: 'bg-emerald-500',
+  },
+  late: {
+    label: 'Late',
+    barClass: 'bg-amber-500',
+    dotClass: 'bg-amber-500',
+  },
+  absent: {
+    label: 'Absent',
+    barClass: 'bg-rose-500',
+    dotClass: 'bg-rose-500',
+  },
+} as const;
 
 export default function ScheduleCard({
   id,
@@ -23,6 +46,7 @@ export default function ScheduleCard({
   start_time,
   end_time,
   initialStatus,
+  attendanceSummary,
 }: ScheduleCardProps) {
   const { user, profile } = useAuth();
   const [currentStatus, setCurrentStatus] = useState<AttendanceStatus>(initialStatus);
@@ -38,6 +62,24 @@ export default function ScheduleCard({
 
   const formattedStart = formatTime(start_time);
   const formattedEnd = formatTime(end_time);
+
+  const attendanceGroups = attendanceSummary || {
+    going: [],
+    late: [],
+    absent: [],
+  };
+
+  const totalResponses =
+    attendanceGroups.going.length +
+    attendanceGroups.late.length +
+    attendanceGroups.absent.length;
+
+  const renderNames = (names: string[]) => {
+    if (names.length === 0) return 'None yet';
+    const visibleNames = names.slice(0, 3);
+    const extraCount = names.length - visibleNames.length;
+    return `${visibleNames.join(', ')}${extraCount > 0 ? ` +${extraCount}` : ''}`;
+  };
 
   // Handle the status update when the toggle is clicked
   const handleStatusChange = async (scheduleId: string, newStatus: NonNullable<AttendanceStatus>) => {
@@ -115,6 +157,53 @@ export default function ScheduleCard({
             <div className="flex items-center gap-1.5">
               <MapPin className="h-4 w-4 text-red-500" />
               <span>{room}</span>
+            </div>
+          </div>
+
+          {/* Attendance Checklist Bar */}
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-white/10 dark:bg-white/5">
+            <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <span>Attendance Checklist</span>
+              <span>{totalResponses} responses</span>
+            </div>
+
+            <div className="flex h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+              {totalResponses === 0 ? (
+                <div className="h-full w-full bg-slate-300 dark:bg-slate-600" />
+              ) : (
+                (Object.keys(statusMeta) as Array<keyof typeof statusMeta>).map((status) => {
+                  const count = attendanceGroups[status].length;
+                  if (count === 0) return null;
+                  return (
+                    <div
+                      key={status}
+                      className={statusMeta[status].barClass}
+                      style={{ width: `${(count / totalResponses) * 100}%` }}
+                      title={`${statusMeta[status].label}: ${attendanceGroups[status].join(', ')}`}
+                    />
+                  );
+                })
+              )}
+            </div>
+
+            <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
+              {(Object.keys(statusMeta) as Array<keyof typeof statusMeta>).map((status) => {
+                const names = attendanceGroups[status];
+                return (
+                  <div
+                    key={status}
+                    className="rounded-lg border border-slate-200 bg-white/80 p-2 dark:border-white/10 dark:bg-slate-950/40"
+                  >
+                    <div className="flex items-center gap-2 font-semibold text-slate-700 dark:text-slate-200">
+                      <span className={`h-2.5 w-2.5 rounded-full ${statusMeta[status].dotClass}`} />
+                      {statusMeta[status].label} <span className="text-slate-500">({names.length})</span>
+                    </div>
+                    <p className="mt-1 text-slate-500 dark:text-slate-400">
+                      {renderNames(names)}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
