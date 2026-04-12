@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { supabase } from '@/utils/supabase';
-import { Clock, MapPin, Trash2 } from 'lucide-react';
+import { CalendarDays, Clock, MapPin, Trash2 } from 'lucide-react';
 import AttendanceToggle, { AttendanceStatus } from './AttendanceToggle';
 import { useAuth } from '@/context/SupabaseAuthContext';
 import { toast } from 'sonner';
@@ -62,6 +62,16 @@ export default function ScheduleCard({
 
   const formattedStart = formatTime(start_time);
   const formattedEnd = formatTime(end_time);
+  const formattedDate = (() => {
+    const d = new Date(start_time);
+    if (Number.isNaN(d.getTime())) return 'TBA';
+    return d.toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  })();
 
   const attendanceGroups = attendanceSummary || {
     going: [],
@@ -144,7 +154,12 @@ export default function ScheduleCard({
             )}
           </div>
 
-          <div className="flex flex-col gap-2 text-sm font-medium text-slate-600 dark:text-slate-300 sm:flex-row sm:items-center sm:gap-6">
+          <div className="flex flex-col gap-2 text-sm font-medium text-slate-600 dark:text-slate-300 sm:flex-row sm:flex-wrap sm:items-center sm:gap-6">
+            <div className="flex items-center gap-1.5">
+              <CalendarDays className="h-4 w-4 text-indigo-500" />
+              <span>{formattedDate}</span>
+            </div>
+
             {/* Time with Lucide Clock Icon */}
             <div className="flex items-center gap-1.5">
               <Clock className="h-4 w-4 text-blue-500" />

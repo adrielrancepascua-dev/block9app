@@ -15,7 +15,19 @@ const scheduleSchema = z
     room: z.string().min(1, 'Room is required').max(50),
     date: z.string().min(1, 'Date is required'),
     startTime: z.string().min(1, 'Start time is required'),
-  });
+    endTime: z.string().min(1, 'End time is required'),
+  })
+  .refine(
+    (data) => {
+      const start = new Date(`${data.date}T${data.startTime}:00`).getTime();
+      const end = new Date(`${data.date}T${data.endTime}:00`).getTime();
+      return !Number.isNaN(start) && !Number.isNaN(end) && end > start;
+    },
+    {
+      message: 'End time must be after start time',
+      path: ['endTime'],
+    }
+  );
 
 type ScheduleFormValues = z.infer<typeof scheduleSchema>;
 
@@ -36,10 +48,9 @@ export default function AdminPanel() {
   const onSubmit = async (data: ScheduleFormValues) => {
     setIsSubmitting(true);
     try {
-      // Construct a local date/time and convert both values to ISO for Supabase
+      // Construct local date/time values and convert to ISO for Supabase
       const startDateObj = new Date(`${data.date}T${data.startTime}:00`);
-      const endDateObj = new Date(startDateObj);
-      endDateObj.setHours(endDateObj.getHours() + 1);
+      const endDateObj = new Date(`${data.date}T${data.endTime}:00`);
       const startDateTime = startDateObj.toISOString();
       const endDateTime = endDateObj.toISOString();
 
@@ -127,7 +138,7 @@ export default function AdminPanel() {
           </div>
 
           {/* Date and Time Inputs Group for better layout */}
-          <div className="space-y-4 sm:grid sm:grid-cols-2 sm:gap-6 sm:space-y-0">
+          <div className="space-y-4 sm:grid sm:grid-cols-3 sm:gap-6 sm:space-y-0">
             
             {/* Date Selection */}
             <div className="sm:col-span-1">
@@ -166,6 +177,26 @@ export default function AdminPanel() {
               />
               {errors.startTime && (
                 <p className="mt-1 text-sm text-red-500">{errors.startTime.message}</p>
+              )}
+            </div>
+
+            {/* End Time */}
+            <div className="sm:col-span-1">
+              <label htmlFor="endTime" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                End Time
+              </label>
+              <input
+                id="endTime"
+                type="time"
+                className={`mt-1 block w-full rounded-lg border bg-white px-3 py-2.5 text-slate-900 shadow-sm focus:outline-none focus:ring-2 dark:bg-slate-900 dark:text-white sm:px-4 sm:py-3 ${
+                  errors.endTime
+                    ? 'border-red-500 focus:border-red-500 focus:ring-red-200 dark:border-red-500/50 dark:focus:ring-red-900'
+                    : 'border-slate-300 focus:border-blue-500 focus:ring-blue-200 dark:border-slate-600 dark:focus:ring-blue-900'
+                }`}
+                {...register('endTime')}
+              />
+              {errors.endTime && (
+                <p className="mt-1 text-sm text-red-500">{errors.endTime.message}</p>
               )}
             </div>
           </div>
