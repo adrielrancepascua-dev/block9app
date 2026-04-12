@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/context/SupabaseAuthContext';
 import { supabase } from '@/utils/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -45,7 +45,7 @@ export default function FreedomWall() {
   const [error, setError] = useState<string | null>(null);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isPlacing, setIsPlacing] = useState(false);
+  const [isDraggingPin, setIsDraggingPin] = useState(false);
   const [draftPosition, setDraftPosition] = useState({ x: 50, y: 50 });
   const [clearVoteCount, setClearVoteCount] = useState(0);
   const [hasVotedToClear, setHasVotedToClear] = useState(false);
@@ -53,6 +53,7 @@ export default function FreedomWall() {
   const [isClearing, setIsClearing] = useState(false);
   const [voteError, setVoteError] = useState<string | null>(null);
   const [isVoteFeatureAvailable, setIsVoteFeatureAvailable] = useState(true);
+  const boardRef = useRef<HTMLDivElement | null>(null);
 
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
   const clearProgress = Math.min(100, (clearVoteCount / CLEAR_VOTE_TARGET) * 100);
@@ -301,23 +302,48 @@ export default function FreedomWall() {
     }
   };
 
-  const handleBoardPlacement = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isPlacing) return;
+  const updateDraftPositionFromPoint = (clientX: number, clientY: number) => {
+    const board = boardRef.current;
+    if (!board) return;
 
-    const target = e.target as HTMLElement;
-    if (target.closest('[data-note-card="true"]')) return;
-
-    const rect = e.currentTarget.getBoundingClientRect();
+    const rect = board.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
 
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const x = ((clientX - rect.left) / rect.width) * 100;
+    const y = ((clientY - rect.top) / rect.height) * 100;
 
     setDraftPosition({
       x: clamp(x, 5, 92),
       y: clamp(y, 5, 92),
     });
-    setIsPlacing(false);
+  };
+
+  const handleBoardPlacement = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-note-card="true"]') || target.closest('[data-draft-pin="true"]')) return;
+    updateDraftPositionFromPoint(e.clientX, e.clientY);
+  };
+
+  const handleDraftPinPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingPin(true);
+    updateDraftPositionFromPoint(e.clientX, e.clientY);
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      updateDraftPositionFromPoint(moveEvent.clientX, moveEvent.clientY);
+    };
+
+    const handlePointerUp = () => {
+      setIsDraggingPin(false);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
   };
 
   const handleDelete = async (postId: string) => {
@@ -494,14 +520,6 @@ export default function FreedomWall() {
 
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                 <button
-                  type="button"
-                  onClick={() => setIsPlacing((prev) => !prev)}
-                  className="w-full sm:w-auto rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                >
-                  {isPlacing ? 'Click board...' : 'Choose Position'}
-                </button>
-
-                <button
                   type="submit"
                   disabled={isSubmitting}
                   className="w-full sm:w-auto rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-blue-400"
@@ -512,8 +530,7 @@ export default function FreedomWall() {
             </div>
 
             <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-              Next note position: {Math.round(draftPosition.x)}%, {Math.round(draftPosition.y)}%
-              {isPlacing ? ' (click anywhere on the board)' : ''}
+              Drag the blue pin on the board to place your next note.
             </p>
           </form>
         </div>
@@ -522,21 +539,23 @@ export default function FreedomWall() {
       <div className="relative mb-4 min-h-[460px] flex-1 overflow-hidden rounded-xl border-4 border-amber-800/80 bg-[url('https://www.transparenttextures.com/patterns/cork-board.png')] bg-[#d4a88c] shadow-inner sm:mb-8 sm:min-h-[400px] sm:border-8">
         <div className="absolute inset-0 overflow-auto">
           <div
-            className={`relative h-full w-full ${isPlacing ? 'cursor-crosshair' : ''}`}
+            ref={boardRef}
+            className="relative h-full w-full"
             onClick={handleBoardPlacement}
           >
             {user && (
-              <div
-                className="pointer-events-none absolute z-10 h-24 w-24 border-2 border-dashed border-slate-700/50 bg-white/40 p-2 text-[10px] text-slate-700 shadow-sm sm:h-28 sm:w-28"
+              <button
+                type="button"
+                data-draft-pin="true"
+                onPointerDown={handleDraftPinPointerDown}
+                aria-label="Drag to place the next note"
+                title="Drag to place the next note"
+                className={`absolute z-20 h-5 w-5 -translate-x-1/2 -translate-y-1/2 touch-none rounded-full border-2 border-white bg-blue-500 shadow-lg ring-4 ring-blue-500/20 transition ${isDraggingPin ? 'cursor-grabbing scale-110' : 'cursor-grab'}`}
                 style={{
                   top: `${draftPosition.y}%`,
                   left: `${draftPosition.x}%`,
-                  transform: 'rotate(-2deg)',
                 }}
-              >
-                <div className="absolute top-1 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-blue-500/80 border border-blue-700" />
-                <p className="mt-4 font-semibold">Next note goes here</p>
-              </div>
+              />
             )}
 
             {posts.map((post) => {
@@ -548,7 +567,6 @@ export default function FreedomWall() {
                   key={post.id}
                   data-note-card="true"
                   onClick={() => {
-                    if (isPlacing) return;
                     setSelectedPost(post);
                   }}
                   className="group absolute flex h-28 w-28 cursor-pointer flex-col overflow-hidden p-2.5 shadow-md transition-shadow hover:shadow-xl sm:h-32 sm:w-32 sm:p-3"
