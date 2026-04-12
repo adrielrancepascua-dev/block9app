@@ -15,6 +15,12 @@ interface Schedule {
   end_time: string;
 }
 
+interface AttendanceSummary {
+  going: string[];
+  late: string[];
+  absent: string[];
+}
+
 interface DayCell {
   key: string;
   date: Date;
@@ -22,6 +28,30 @@ interface DayCell {
 }
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const statusMeta = {
+  going: {
+    label: "Going",
+    dotClass: "bg-emerald-500",
+    panelClass: "border-emerald-200/80 bg-emerald-50/70 dark:border-emerald-400/25 dark:bg-emerald-500/10",
+  },
+  late: {
+    label: "Late",
+    dotClass: "bg-amber-500",
+    panelClass: "border-amber-200/80 bg-amber-50/70 dark:border-amber-400/25 dark:bg-amber-500/10",
+  },
+  absent: {
+    label: "Absent",
+    dotClass: "bg-rose-500",
+    panelClass: "border-rose-200/80 bg-rose-50/70 dark:border-rose-400/25 dark:bg-rose-500/10",
+  },
+} as const;
+
+const emptySummary: AttendanceSummary = {
+  going: [],
+  late: [],
+  absent: [],
+};
 
 const toDateKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
@@ -35,6 +65,18 @@ const formatTime = (timeStr?: string) => {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 };
 
+const formatCompactTime = (timeStr?: string) => {
+  if (!timeStr) return "--";
+  const d = new Date(timeStr);
+  if (Number.isNaN(d.getTime())) return "--";
+  const rawHours = d.getHours();
+  const minutes = d.getMinutes();
+  const hours = ((rawHours + 11) % 12) + 1;
+  const meridiem = rawHours >= 12 ? "p" : "a";
+  if (minutes === 0) return `${hours}${meridiem}`;
+  return `${hours}:${String(minutes).padStart(2, "0")}${meridiem}`;
+};
+
 const formatDate = (timeStr?: string) => {
   if (!timeStr) return "TBA";
   const d = new Date(timeStr);
@@ -45,6 +87,12 @@ const formatDate = (timeStr?: string) => {
     day: "numeric",
     year: "numeric",
   });
+};
+
+const renderNames = (names: string[]) => {
+  if (!names.length) return "None yet";
+  if (names.length <= 5) return names.join(", ");
+  return `${names.slice(0, 5).join(", ")} +${names.length - 5}`;
 };
 
 const buildMonthGrid = (year: number, month: number): DayCell[] => {
@@ -68,6 +116,7 @@ export default function Home() {
   const router = useRouter();
 
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [attendanceSummaryMap, setAttendanceSummaryMap] = useState<Record<string, AttendanceSummary>>({});
   const [isFetching, setIsFetching] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
@@ -90,6 +139,7 @@ export default function Home() {
   const fetchSchedules = async () => {
     setIsFetching(true);
     setFetchError(null);
+
     try {
       const { data: scheduleData, error: scheduleError } = await supabase
         .from("schedules")
@@ -97,7 +147,43 @@ export default function Home() {
         .order("start_time", { ascending: true });
 
       if (scheduleError) throw scheduleError;
-      setSchedules(scheduleData || []);
+
+      const safeSchedules = scheduleData || [];
+      setSchedules(safeSchedules);
+
+      if (!safeSchedules.length) {
+        setAttendanceSummaryMap({});
+        return;
+      }
+
+      const { data: attendanceData, error: attendanceError } = await supabase
+        .from("attendance")
+        .select("schedule_id, status, user_id, profiles(name)")
+        .in(
+          "schedule_id",
+          safeSchedules.map((schedule) => schedule.id)
+        );
+
+      if (attendanceError) throw attendanceError;
+
+      const summaryMap: Record<string, AttendanceSummary> = {};
+      (attendanceData || []).forEach((record: any) => {
+        const status = record.status as keyof AttendanceSummary;
+        if (!["going", "late", "absent"].includes(status)) return;
+
+        if (!summaryMap[record.schedule_id]) {
+          summaryMap[record.schedule_id] = {
+            going: [],
+            late: [],
+            absent: [],
+          };
+        }
+
+        const displayName = record.user_id === user?.id ? "You" : record.profiles?.name || "Guest";
+        summaryMap[record.schedule_id][status].push(displayName);
+      });
+
+      setAttendanceSummaryMap(summaryMap);
     } catch (err: any) {
       console.error("Error fetching schedules:", err.message);
       setFetchError("Could not refresh schedules right now. Retrying automatically...");
@@ -153,6 +239,10 @@ export default function Home() {
     [viewYear, viewMonth]
   );
 
+  const selectedAttendance = selectedSchedule
+    ? attendanceSummaryMap[selectedSchedule.id] || emptySummary
+    : emptySummary;
+
   const goToPreviousMonth = () => {
     setViewMonth((prev) => {
       if (prev === 0) {
@@ -197,14 +287,14 @@ export default function Home() {
 
   return (
     <ProfileLayout>
-      <div className="w-full">
-        <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
+      <div className="w-full font-[family-name:var(--font-geist-sans)]">
+        <div className="mb-5 flex flex-col gap-3 sm:mb-7 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-800 drop-shadow-md sm:text-3xl dark:text-white">
               Hi, {profile?.name || "Student"}
             </h1>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-200">
-              Tap or click a green schedule to view room and exact time.
+              Tap or click a schedule to view room, time, and attendance status.
             </p>
           </div>
 
@@ -232,9 +322,9 @@ export default function Home() {
           </div>
         )}
 
-        <div className="rounded-xl border border-slate-200 bg-white/85 p-3 shadow-lg backdrop-blur-md dark:border-white/20 dark:bg-slate-900/80 sm:p-4">
-          <div className="mb-3 flex items-center justify-between gap-2 sm:mb-4">
-            <div className="flex items-center gap-2">
+        <div className="rounded-xl border border-slate-300/70 bg-white/80 p-3 shadow-lg backdrop-blur-md dark:border-white/20 dark:bg-slate-900/70 sm:p-4">
+          <div className="mb-5 grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:mb-6">
+            <div className="flex items-center gap-2 justify-self-start">
               <button
                 type="button"
                 onClick={goToPreviousMonth}
@@ -251,22 +341,26 @@ export default function Home() {
               </button>
             </div>
 
-            <h2 className="text-base font-bold text-slate-800 sm:text-2xl dark:text-white">{monthTitle}</h2>
+            <h2 className="px-2 text-center text-xl font-extrabold tracking-tight text-slate-900 sm:text-3xl dark:text-white">
+              {monthTitle}
+            </h2>
 
-            <button
-              type="button"
-              onClick={goToNextMonth}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-white/20 dark:text-white dark:hover:bg-white/10"
-            >
-              Next
-            </button>
+            <div className="justify-self-end">
+              <button
+                type="button"
+                onClick={goToNextMonth}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-white/20 dark:text-white dark:hover:bg-white/10"
+              >
+                Next
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-7 border border-slate-200 dark:border-white/10">
+          <div className="grid grid-cols-7 border border-slate-300/70 dark:border-white/15">
             {WEEKDAYS.map((weekday) => (
               <div
                 key={weekday}
-                className="min-h-9 border-b border-r border-slate-200 bg-slate-100 px-1 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600 last:border-r-0 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 sm:min-h-11 sm:px-2 sm:text-xs"
+                className="min-h-9 border-b border-r border-slate-300/55 bg-slate-100/90 px-1 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600 last:border-r-0 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 sm:min-h-11 sm:px-2 sm:text-xs"
               >
                 {weekday}
               </div>
@@ -280,9 +374,9 @@ export default function Home() {
               return (
                 <div
                   key={cell.key}
-                  className={`min-h-24 border-b border-r border-slate-200 p-1.5 sm:min-h-32 sm:p-2 ${
+                  className={`min-h-24 border-b border-r border-slate-300/50 p-1.5 sm:min-h-32 sm:p-2 ${
                     isLastCol ? "border-r-0" : ""
-                  } ${cell.inCurrentMonth ? "bg-white/70 dark:bg-slate-900/40" : "bg-slate-100/80 dark:bg-slate-900/20"} dark:border-white/10`}
+                  } ${cell.inCurrentMonth ? "bg-white/70 dark:bg-slate-900/35" : "bg-slate-100/75 dark:bg-slate-900/15"} dark:border-white/10`}
                 >
                   <div className="mb-1 flex items-center justify-between">
                     <span
@@ -304,12 +398,16 @@ export default function Home() {
                         key={schedule.id}
                         type="button"
                         onClick={() => setSelectedSchedule(schedule)}
-                        className="w-full truncate rounded-md bg-green-700 px-2 py-1 text-left text-[11px] font-semibold text-white shadow-sm hover:bg-green-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/70 sm:text-xs"
+                        className="w-full overflow-hidden rounded-sm border border-emerald-400/35 bg-emerald-600/75 px-1.5 py-1 text-left text-[11px] font-semibold text-emerald-50 shadow-sm backdrop-blur-md transition hover:bg-emerald-600/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70 sm:px-2 sm:text-xs"
                         title={`${schedule.subject} (${formatTime(schedule.start_time)} - ${formatTime(
                           schedule.end_time
                         )})`}
                       >
-                        {schedule.subject}
+                        <span className="sm:hidden">
+                          <span className="font-bold">{formatCompactTime(schedule.start_time)}</span>
+                          <span className="hidden min-[430px]:inline"> {schedule.subject.slice(0, 10)}</span>
+                        </span>
+                        <span className="hidden truncate sm:block">{schedule.subject}</span>
                       </button>
                     ))}
 
@@ -339,9 +437,12 @@ export default function Home() {
       </div>
 
       {selectedSchedule && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center sm:p-6" onClick={() => setSelectedSchedule(null)}>
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center sm:p-6"
+          onClick={() => setSelectedSchedule(null)}
+        >
           <div
-            className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-white/10 dark:bg-slate-900"
+            className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-white/10 dark:bg-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-start justify-between">
@@ -369,6 +470,29 @@ export default function Home() {
                 <MapPin className="h-4 w-4 text-rose-500" />
                 Room {selectedSchedule.room || "TBA"}
               </p>
+            </div>
+
+            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-white/5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Attendance Status
+              </p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                {(Object.keys(statusMeta) as Array<keyof typeof statusMeta>).map((status) => {
+                  const names = selectedAttendance[status];
+                  return (
+                    <div
+                      key={status}
+                      className={`rounded-md border p-2 text-xs ${statusMeta[status].panelClass}`}
+                    >
+                      <p className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-100">
+                        <span className={`h-2 w-2 rounded-full ${statusMeta[status].dotClass}`} />
+                        {statusMeta[status].label} ({names.length})
+                      </p>
+                      <p className="mt-1 text-[11px] text-slate-600 dark:text-slate-300">{renderNames(names)}</p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
