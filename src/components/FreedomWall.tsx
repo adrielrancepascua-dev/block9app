@@ -55,6 +55,7 @@ export default function FreedomWall() {
   const [isVoteFeatureAvailable, setIsVoteFeatureAvailable] = useState(true);
   const boardRef = useRef<HTMLDivElement | null>(null);
   const lastDragTimestampRef = useRef(0);
+  const lastInteractionWasDragRef = useRef(false);
 
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
   const clearProgress = Math.min(100, (clearVoteCount / CLEAR_VOTE_TARGET) * 100);
@@ -400,6 +401,10 @@ export default function FreedomWall() {
     };
 
     lastDragTimestampRef.current = Date.now();
+    // Mark that a drag just occurred so a following click doesn't open the note immediately.
+    lastInteractionWasDragRef.current = true;
+    // Clear the flag shortly after to allow normal clicks again.
+    window.setTimeout(() => (lastInteractionWasDragRef.current = false), 600);
 
     if (
       Math.abs(nextPosition.x - previousPosition.x) < 0.2 &&
@@ -652,7 +657,8 @@ export default function FreedomWall() {
                   data-note-card="true"
                   data-note-id={post.id}
                   onClick={() => {
-                    if (Date.now() - lastDragTimestampRef.current < 200) return;
+                    // Ignore clicks that immediately follow a drag to avoid opening the note unintentionally.
+                    if (lastInteractionWasDragRef.current) return;
                     setSelectedPost(post);
                   }}
                   drag
