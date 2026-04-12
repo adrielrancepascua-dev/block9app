@@ -43,6 +43,10 @@ export default function FreedomWall() {
   const [error, setError] = useState<string | null>(null);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isPlacing, setIsPlacing] = useState(false);
+  const [draftPosition, setDraftPosition] = useState({ x: 50, y: 50 });
+
+  const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
   const getPostColor = (post: Post) => {
     if (post.profiles?.custom_bg_url && post.profiles.custom_bg_url.startsWith('#')) {
@@ -183,8 +187,8 @@ export default function FreedomWall() {
     const currentIsAnonymous = isAnonymous;
     const createdAt = new Date().toISOString();
     const optimisticId = `temp-${Date.now()}`;
-    const randomX = Math.floor(Math.random() * 70) + 10;
-    const randomY = Math.floor(Math.random() * 70) + 10;
+    const placedX = Math.round(clamp(draftPosition.x, 5, 92));
+    const placedY = Math.round(clamp(draftPosition.y, 5, 92));
 
     try {
       const optimisticPost: Post = {
@@ -194,8 +198,8 @@ export default function FreedomWall() {
         author_name: profile?.name || 'Loading...',
         is_anonymous: currentIsAnonymous,
         created_at: createdAt,
-        x_pos: randomX,
-        y_pos: randomY,
+        x_pos: placedX,
+        y_pos: placedY,
         profiles: { name: profile?.name || 'Loading...', custom_bg_url: profile?.custom_bg_url || undefined },
       };
 
@@ -211,8 +215,8 @@ export default function FreedomWall() {
           author_id: user.id,
           is_anonymous: currentIsAnonymous,
           created_at: createdAt,
-          x_pos: randomX,
-          y_pos: randomY,
+          x_pos: placedX,
+          y_pos: placedY,
         })
         .select()
         .single();
@@ -230,6 +234,25 @@ export default function FreedomWall() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleBoardPlacement = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isPlacing) return;
+
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-note-card="true"]')) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+    setDraftPosition({
+      x: clamp(x, 5, 92),
+      y: clamp(y, 5, 92),
+    });
+    setIsPlacing(false);
   };
 
   const handleDelete = async (postId: string) => {
@@ -288,21 +311,53 @@ export default function FreedomWall() {
                 <span>Post anonymously</span>
               </label>
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full sm:w-auto rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-blue-400"
-              >
-                {isSubmitting ? 'Pinning...' : 'Pin Note'}
-              </button>
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => setIsPlacing((prev) => !prev)}
+                  className="w-full sm:w-auto rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  {isPlacing ? 'Click board...' : 'Choose Position'}
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full sm:w-auto rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-blue-400"
+                >
+                  {isSubmitting ? 'Pinning...' : 'Pin Note'}
+                </button>
+              </div>
             </div>
+
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+              Next note position: {Math.round(draftPosition.x)}%, {Math.round(draftPosition.y)}%
+              {isPlacing ? ' (click anywhere on the board)' : ''}
+            </p>
           </form>
         </div>
       )}
 
       <div className="relative flex-1 overflow-hidden rounded-xl border-8 border-amber-800/80 bg-[url('https://www.transparenttextures.com/patterns/cork-board.png')] bg-[#d4a88c] shadow-inner mb-8 min-h-[400px]">
         <div className="absolute inset-0 overflow-auto">
-          <div className="relative w-[200%] h-[150%] md:w-full md:h-full">
+          <div
+            className={`relative w-[200%] h-[150%] md:w-full md:h-full ${isPlacing ? 'cursor-crosshair' : ''}`}
+            onClick={handleBoardPlacement}
+          >
+            {user && (
+              <div
+                className="pointer-events-none absolute z-10 w-28 h-28 border-2 border-dashed border-slate-700/50 bg-white/40 p-2 text-[10px] text-slate-700 shadow-sm"
+                style={{
+                  top: `${draftPosition.y}%`,
+                  left: `${draftPosition.x}%`,
+                  transform: 'rotate(-2deg)',
+                }}
+              >
+                <div className="absolute top-1 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-blue-500/80 border border-blue-700" />
+                <p className="mt-4 font-semibold">Next note goes here</p>
+              </div>
+            )}
+
             {posts.map((post) => {
               let rotateDeg = 0;
               if (post.id) rotateDeg = (post.id.charCodeAt(0) % 10) - 5;
@@ -310,7 +365,11 @@ export default function FreedomWall() {
                 <motion.div
                   layoutId={`post-${post.id}`}
                   key={post.id}
-                  onClick={() => setSelectedPost(post)}
+                  data-note-card="true"
+                  onClick={() => {
+                    if (isPlacing) return;
+                    setSelectedPost(post);
+                  }}
                   className="absolute w-32 h-32 cursor-pointer shadow-md hover:shadow-xl transition-shadow p-3 flex flex-col group overflow-hidden"
                   style={{
                     top: `${post.y_pos}%`,
