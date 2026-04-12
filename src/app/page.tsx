@@ -65,18 +65,6 @@ const formatTime = (timeStr?: string) => {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 };
 
-const formatCompactTime = (timeStr?: string) => {
-  if (!timeStr) return "--";
-  const d = new Date(timeStr);
-  if (Number.isNaN(d.getTime())) return "--";
-  const rawHours = d.getHours();
-  const minutes = d.getMinutes();
-  const hours = ((rawHours + 11) % 12) + 1;
-  const meridiem = rawHours >= 12 ? "p" : "a";
-  if (minutes === 0) return `${hours}${meridiem}`;
-  return `${hours}:${String(minutes).padStart(2, "0")}${meridiem}`;
-};
-
 const formatDate = (timeStr?: string) => {
   if (!timeStr) return "TBA";
   const d = new Date(timeStr);
@@ -119,6 +107,10 @@ export default function Home() {
   const [attendanceSummaryMap, setAttendanceSummaryMap] = useState<Record<string, AttendanceSummary>>({});
   const [isFetching, setIsFetching] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [selectedDayEvents, setSelectedDayEvents] = useState<{
+    dateLabel: string;
+    schedules: Schedule[];
+  } | null>(null);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
 
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
@@ -269,6 +261,24 @@ export default function Home() {
     setViewMonth(now.getMonth());
   };
 
+  const openDayEvents = (daySchedules: Schedule[], dayDate: Date) => {
+    if (!daySchedules.length) return;
+
+    if (daySchedules.length === 1) {
+      setSelectedSchedule(daySchedules[0]);
+      return;
+    }
+
+    setSelectedDayEvents({
+      dateLabel: dayDate.toLocaleDateString(undefined, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      }),
+      schedules: daySchedules,
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
@@ -393,29 +403,37 @@ export default function Home() {
                   </div>
 
                   <div className="space-y-1">
-                    {daySchedules.slice(0, 3).map((schedule) => (
+                    {daySchedules.length > 0 && (
                       <button
-                        key={schedule.id}
                         type="button"
-                        onClick={() => setSelectedSchedule(schedule)}
-                        className="w-full overflow-hidden rounded-sm border border-emerald-400/35 bg-emerald-600/75 px-1.5 py-1 text-left text-[11px] font-semibold text-emerald-50 shadow-sm backdrop-blur-md transition hover:bg-emerald-600/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70 sm:px-2 sm:text-xs"
-                        title={`${schedule.subject} (${formatTime(schedule.start_time)} - ${formatTime(
-                          schedule.end_time
-                        )})`}
+                        onClick={() => openDayEvents(daySchedules, cell.date)}
+                        className="w-full rounded-sm border border-emerald-400/35 bg-emerald-600/75 px-1.5 py-1 text-center text-[10px] font-semibold text-emerald-50 shadow-sm backdrop-blur-md transition hover:bg-emerald-600/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70 sm:hidden"
                       >
-                        <span className="sm:hidden">
-                          <span className="font-bold">{formatCompactTime(schedule.start_time)}</span>
-                          <span className="hidden min-[430px]:inline"> {schedule.subject.slice(0, 10)}</span>
-                        </span>
-                        <span className="hidden truncate sm:block">{schedule.subject}</span>
+                        {daySchedules.length} event{daySchedules.length > 1 ? "s" : ""}
                       </button>
-                    ))}
-
-                    {daySchedules.length > 3 && (
-                      <p className="px-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                        +{daySchedules.length - 3} more
-                      </p>
                     )}
+
+                    <div className="hidden space-y-1 sm:block">
+                      {daySchedules.slice(0, 3).map((schedule) => (
+                        <button
+                          key={schedule.id}
+                          type="button"
+                          onClick={() => setSelectedSchedule(schedule)}
+                          className="w-full overflow-hidden rounded-sm border border-emerald-400/35 bg-emerald-600/75 px-2 py-1 text-left text-xs font-semibold text-emerald-50 shadow-sm backdrop-blur-md transition hover:bg-emerald-600/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70"
+                          title={`${schedule.subject} (${formatTime(schedule.start_time)} - ${formatTime(
+                            schedule.end_time
+                          )})`}
+                        >
+                          <span className="truncate">{schedule.subject}</span>
+                        </button>
+                      ))}
+
+                      {daySchedules.length > 3 && (
+                        <p className="px-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                          +{daySchedules.length - 3} more
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -435,6 +453,52 @@ export default function Home() {
           )}
         </div>
       </div>
+
+      {selectedDayEvents && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center sm:p-6"
+          onClick={() => setSelectedDayEvents(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-white/10 dark:bg-slate-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-start justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">{selectedDayEvents.dateLabel}</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-300">Select an event to view full details.</p>
+              </div>
+              <button
+                type="button"
+                className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
+                onClick={() => setSelectedDayEvents(null)}
+                aria-label="Close day events"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {selectedDayEvents.schedules.map((schedule) => (
+                <button
+                  key={schedule.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedDayEvents(null);
+                    setSelectedSchedule(schedule);
+                  }}
+                  className="w-full rounded-md border border-emerald-400/35 bg-emerald-600/75 p-3 text-left text-emerald-50 shadow-sm backdrop-blur-md transition hover:bg-emerald-600/90"
+                >
+                  <p className="text-sm font-bold">{schedule.subject}</p>
+                  <p className="mt-0.5 text-xs text-emerald-100/90">
+                    {formatTime(schedule.start_time)} - {formatTime(schedule.end_time)}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {selectedSchedule && (
         <div
