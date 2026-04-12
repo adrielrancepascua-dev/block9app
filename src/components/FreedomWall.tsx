@@ -100,26 +100,6 @@ export default function FreedomWall() {
     }
   };
 
-  const getPositionFromElement = (element: HTMLElement) => {
-    const board = boardRef.current;
-    if (!board) return null;
-
-    const boardRect = board.getBoundingClientRect();
-    const noteRect = element.getBoundingClientRect();
-
-    if (!boardRect.width || !boardRect.height) return null;
-
-    const rawX = ((noteRect.left - boardRect.left) / boardRect.width) * 100;
-    const rawY = ((noteRect.top - boardRect.top) / boardRect.height) * 100;
-    const widthPercent = (noteRect.width / boardRect.width) * 100;
-    const heightPercent = (noteRect.height / boardRect.height) * 100;
-
-    return {
-      x: clamp(rawX, 0, Math.max(0, 100 - widthPercent)),
-      y: clamp(rawY, 0, Math.max(0, 100 - heightPercent)),
-    };
-  };
-
   const fetchPosts = async (showSpinner = true) => {
     try {
       if (showSpinner) {
@@ -404,16 +384,20 @@ export default function FreedomWall() {
     postId: string,
     previousPosition: { x: number; y: number },
     _event: MouseEvent | TouchEvent | PointerEvent,
-    _info: PanInfo
+    info: PanInfo
   ) => {
     const board = boardRef.current;
     if (!board) return;
 
-    const noteElement = board.querySelector<HTMLElement>(`[data-note-id="${postId}"]`);
-    if (!noteElement) return;
+    const boardRect = board.getBoundingClientRect();
+    if (!boardRect.width || !boardRect.height) return;
 
-    const nextPosition = getPositionFromElement(noteElement);
-    if (!nextPosition) return;
+    const deltaXPercent = (info.offset.x / boardRect.width) * 100;
+    const deltaYPercent = (info.offset.y / boardRect.height) * 100;
+    const nextPosition = {
+      x: clamp(previousPosition.x + deltaXPercent, 0, 92),
+      y: clamp(previousPosition.y + deltaYPercent, 0, 92),
+    };
 
     lastDragTimestampRef.current = Date.now();
 
@@ -445,8 +429,18 @@ export default function FreedomWall() {
           post.id === postId ? { ...post, x_pos: previousPosition.x, y_pos: previousPosition.y } : post
         )
       );
-      setError('Could not save note position right now.');
+      const isRlsError =
+        updatePositionError.code === '42501' ||
+        /row-level security|permission denied/i.test(updatePositionError.message || '');
+      setError(
+        isRlsError
+          ? 'Could not save note position due to database policy. Run the move-update SQL migration in Supabase.'
+          : 'Could not save note position right now.'
+      );
+      return;
     }
+
+    setError(null);
   };
 
   const handleVoteToClear = async () => {
@@ -665,6 +659,7 @@ export default function FreedomWall() {
                   dragConstraints={boardRef}
                   dragMomentum={false}
                   dragElastic={0}
+                  dragSnapToOrigin
                   onDragEnd={(event, info) =>
                     handleNoteDragEnd(post.id, { x: post.x_pos, y: post.y_pos }, event, info)
                   }
