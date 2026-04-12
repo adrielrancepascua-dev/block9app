@@ -15,23 +15,44 @@ const scheduleSchema = z
     room: z.string().min(1, 'Room is required').max(50),
     date: z.string().min(1, 'Date is required'),
     startTime: z.string().min(1, 'Start time is required'),
-    endTime: z.string().min(1, 'End time is required'),
-  })
-  .refine(
-    (data) => {
-      // Ensure all date/time fields exist before comparing
-      if (!data.date || !data.startTime || !data.endTime) return true;
-      const start = new Date(`${data.date}T${data.startTime}`);
-      const end = new Date(`${data.date}T${data.endTime}`);
-      return end > start;
-    },
-    {
-      message: 'End time must be after start time',
-      path: ['endTime'], // Attach error to the endTime field
-    }
-  );
+  });
 
 type ScheduleFormValues = z.infer<typeof scheduleSchema>;
+
+// --- Helper Functions to Generate Options ---
+const generateDateOptions = () => {
+  const options = [];
+  const today = new Date();
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    
+    // Value: YYYY-MM-DD
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    
+    // Label: "Mon, Apr 12"
+    let label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    if (i === 0) label = "Today (" + label + ")";
+    if (i === 1) label = "Tomorrow (" + label + ")";
+
+    options.push({ value, label });
+  }
+  return options;
+};
+
+const generateTimeOptions = () => {
+  const options = [];
+  for (let h = 6; h <= 20; h++) { // 6 AM to 8 PM
+    for (let m of ['00', '30']) {
+      const isPM = h >= 12;
+      const displayH = h > 12 ? h - 12 : h;
+      const label = `${displayH}:${m} ${isPM ? 'PM' : 'AM'}`;
+      const value = `${String(h).padStart(2, '0')}:${m}`;
+      options.push({ value, label });
+    }
+  }
+  return options;
+};
 
 // --- Component ---
 export default function AdminPanel() {
@@ -50,9 +71,8 @@ export default function AdminPanel() {
   const onSubmit = async (data: ScheduleFormValues) => {
     setIsSubmitting(true);
     try {
-      // Construct ISO format timestamps by combining date and time
+      // Construct ISO format timestamp for start time (end time removed based on user request)
       const startDateTime = `${data.date}T${data.startTime}:00`;
-      const endDateTime = `${data.date}T${data.endTime}:00`;
 
       // Insert the new schedule into Supabase
       const { error } = await supabase
@@ -61,7 +81,7 @@ export default function AdminPanel() {
           subject: data.subject,
           room: data.room,
           start_time: startDateTime,
-          end_time: endDateTime,
+          // null/omitted end time depending on db structure
           created_by: user?.id,
         });
 
@@ -142,62 +162,50 @@ export default function AdminPanel() {
             
             {/* Date Selection */}
             <div className="sm:col-span-2">
+              <label htmlFor="date" clas1">
               <label htmlFor="date" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                 Date
               </label>
-              <input
+              <select
                 id="date"
-                type="date"
                 className={`mt-1 block w-full rounded-lg border bg-white px-4 py-3 text-slate-900 shadow-sm focus:outline-none focus:ring-2 dark:bg-slate-900 dark:text-white ${
                   errors.date
                     ? 'border-red-500 focus:border-red-500 focus:ring-red-200 dark:border-red-500/50 dark:focus:ring-red-900'
                     : 'border-slate-300 focus:border-blue-500 focus:ring-blue-200 dark:border-slate-600 dark:focus:ring-blue-900'
                 }`}
                 {...register('date')}
-              />
+              >
+                <option value="">Select Date...</option>
+                {generateDateOptions().map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
               {errors.date && (
                 <p className="mt-1 text-sm text-red-500">{errors.date.message}</p>
               )}
             </div>
 
             {/* Start Time */}
-            <div>
+            <div className="sm:col-span-1">
               <label htmlFor="startTime" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                 Start Time
               </label>
-              <input
+              <select
                 id="startTime"
-                type="time"
                 className={`mt-1 block w-full rounded-lg border bg-white px-4 py-3 text-slate-900 shadow-sm focus:outline-none focus:ring-2 dark:bg-slate-900 dark:text-white ${
                   errors.startTime
                     ? 'border-red-500 focus:border-red-500 focus:ring-red-200 dark:border-red-500/50 dark:focus:ring-red-900'
                     : 'border-slate-300 focus:border-blue-500 focus:ring-blue-200 dark:border-slate-600 dark:focus:ring-blue-900'
                 }`}
                 {...register('startTime')}
-              />
+              >
+                <option value="">Select Time...</option>
+                {generateTimeOptions().map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
               {errors.startTime && (
-                <p className="mt-1 text-sm text-red-500">{errors.startTime.message}</p>
-              )}
-            </div>
-
-            {/* End Time */}
-            <div>
-              <label htmlFor="endTime" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                End Time
-              </label>
-              <input
-                id="endTime"
-                type="time"
-                className={`mt-1 block w-full rounded-lg border bg-white px-4 py-3 text-slate-900 shadow-sm focus:outline-none focus:ring-2 dark:bg-slate-900 dark:text-white ${
-                  errors.endTime
-                    ? 'border-red-500 focus:border-red-500 focus:ring-red-200 dark:border-red-500/50 dark:focus:ring-red-900'
-                    : 'border-slate-300 focus:border-blue-500 focus:ring-blue-200 dark:border-slate-600 dark:focus:ring-blue-900'
-                }`}
-                {...register('endTime')}
-              />
-              {errors.endTime && (
-                <p className="mt-1 text-sm text-red-500">{errors.endTime.message}</p>
-              )}
+                <p className="mt-1 text-sm text-red-500">{errors.start
             </div>
           </div>
 

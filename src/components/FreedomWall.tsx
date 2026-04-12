@@ -78,6 +78,14 @@ export default function FreedomWall() {
         async (payload: any) => {
           const newPost = payload.new;
           
+          setPosts((prevPosts) => {
+            // Prevent duplicate optimistic posts when realtime fires
+            if (prevPosts.some(p => p.id === newPost.id)) {
+              return prevPosts;
+            }
+            return prevPosts;
+          });
+
           // Fetch author profile for the new post
           const { data: profileData } = await supabase
             .from('profiles')
@@ -95,8 +103,13 @@ export default function FreedomWall() {
             profiles: profileData ? { name: profileData.name } : undefined,
           };
 
-          // Add new post to the top of the list
-          setPosts((prevPosts) => [postWithAuthor, ...prevPosts]);
+          // Add new post to the top of the list, avoiding duplicates again just in case
+          setPosts((prevPosts) => {
+            if (prevPosts.some(p => p.id === newPost.id)) {
+              return prevPosts;
+            }
+            return [postWithAuthor, ...prevPosts];
+          });
         }
       )
       .subscribe();
@@ -118,24 +131,55 @@ export default function FreedomWall() {
     setIsSubmitting(true);
     setError(null);
 
+    // Capture values before clearing form
+    const currentContent = content.trim();
+    const currentIsAnonymous = isAnonymous;
+    const createdAt = new Date().toISOString();
+    const optimisticId = `temp-${Date.now()}`;
+
     try {
-      const { error: insertError } = await supabase
+      // Create optimistic post
+      const optimisticPost: Post = {
+        id: optimisticId,
+        content: currentContent,
+        author_id: user.id,
+        author_name: profile?.name || 'Loading...',
+        is_anonymous: currentIsAnonymous,
+        created_at: createdAt,
+        profiles: { name: profile?.name || 'Loading...' }
+      };
+
+      // Instantly update UI with optimistic post
+      setPosts((prev) => [optimisticPost, ...prev]);
+
+      // Reset form instantly
+      setContent('');
+      setIsAnonymous(false);
+
+      const { data, error: insertError } = await supabase
         .from('freedom_wall')
         .insert({
-          content: content.trim(),
+          content: currentContent,
           author_id: user.id,
-          is_anonymous: isAnonymous,
-          created_at: new Date().toISOString(),
-        });
+          is_anonymous: currentIsAnonymous,
+          created_at: createdAt,
+        })
+        .select()
+        .single();
 
       if (insertError) throw insertError;
 
-      // Reset form
-      setContent('');
-      setIsAnonymous(false);
+      // Update the optimistic post with the real ID from database
+      if (data) {
+        setPosts((prev) => 
+          prev.map((post) => post.id === optimisticId ? { ...post, id: data.id } : post)
+        );
+      }
     } catch (err: any) {
       console.error('Error posting:', err.message);
       setError('Failed to post. Please try again.');
+      // Remove optimistic post if it failed
+      setPosts((prev) => prev.filter((post) => post.id !== optimisticId));
     } finally {
       setIsSubmitting(false);
     }
