@@ -401,10 +401,6 @@ export default function FreedomWall() {
     };
 
     lastDragTimestampRef.current = Date.now();
-    // Mark that a drag just occurred so a following click doesn't open the note immediately.
-    lastInteractionWasDragRef.current = true;
-    // Clear the flag shortly after to allow normal clicks again.
-    window.setTimeout(() => (lastInteractionWasDragRef.current = false), 600);
 
     if (
       Math.abs(nextPosition.x - previousPosition.x) < 0.2 &&
@@ -446,6 +442,17 @@ export default function FreedomWall() {
     }
 
     setError(null);
+  };
+
+  const handleNoteDragStart = () => {
+    // Set this early so the release click is suppressed even if it fires before drag-end logic settles.
+    lastInteractionWasDragRef.current = true;
+  };
+
+  const clearDragOpenBlock = () => {
+    window.setTimeout(() => {
+      lastInteractionWasDragRef.current = false;
+    }, 250);
   };
 
   const handleVoteToClear = async () => {
@@ -662,13 +669,15 @@ export default function FreedomWall() {
                     setSelectedPost(post);
                   }}
                   drag
+                  onDragStart={handleNoteDragStart}
                   dragConstraints={boardRef}
                   dragMomentum={false}
                   dragElastic={0}
                   dragSnapToOrigin
-                  onDragEnd={(event, info) =>
-                    handleNoteDragEnd(post.id, { x: post.x_pos, y: post.y_pos }, event, info)
-                  }
+                  onDragEnd={(event, info) => {
+                    handleNoteDragEnd(post.id, { x: post.x_pos, y: post.y_pos }, event, info);
+                    clearDragOpenBlock();
+                  }}
                   className="group absolute flex h-28 w-28 cursor-pointer flex-col overflow-hidden p-2.5 shadow-md transition-shadow hover:shadow-xl sm:h-32 sm:w-32 sm:p-3"
                   style={{
                     top: `${post.y_pos}%`,
