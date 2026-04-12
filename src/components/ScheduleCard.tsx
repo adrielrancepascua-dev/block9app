@@ -28,9 +28,16 @@ export default function ScheduleCard({
   const [currentStatus, setCurrentStatus] = useState<AttendanceStatus>(initialStatus);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Format the times to strings like "09:00 AM"
-  const formattedStart = new Date(start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const formattedEnd = new Date(end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // Format the times to strings like "09:00 AM" safely
+  const formatTime = (timeStr?: string) => {
+    if (!timeStr) return 'TBA';
+    const d = new Date(timeStr);
+    if (isNaN(d.getTime())) return 'TBA';
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formattedStart = formatTime(start_time);
+  const formattedEnd = formatTime(end_time);
 
   // Handle the status update when the toggle is clicked
   const handleStatusChange = async (scheduleId: string, newStatus: NonNullable<AttendanceStatus>) => {

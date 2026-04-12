@@ -1,6 +1,145 @@
 "use client";
 
 import React, { useState } from 'react';
+import { supabase } from '@/utils/supabase';
+import { Clock, MapPin, Trash2 } from 'lucide-react';
+import AttendanceToggle, { AttendanceStatus } from './AttendanceToggle';
+import { useAuth } from '@/context/SupabaseAuthContext';
+import { toast } from 'sonner';
+
+export interface ScheduleCardProps {
+  id: string;
+  subject: string;
+  room: string;
+  start_time: string;
+  end_time: string;
+  initialStatus: AttendanceStatus;
+}
+
+export default function ScheduleCard({
+  id,
+  subject,
+  room,
+  start_time,
+  end_time,
+  initialStatus,
+}: ScheduleCardProps) {
+  const { user, profile } = useAuth();
+  const [currentStatus, setCurrentStatus] = useState<AttendanceStatus>(initialStatus);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // Format the times to strings like "09:00 AM" safely
+  const formatTime = (timeStr?: string) => {
+    if (!timeStr) return 'TBA';
+    const d = new Date(timeStr);
+    if (isNaN(d.getTime())) return 'TBA';
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formattedStart = formatTime(start_time);
+  const formattedEnd = formatTime(end_time);
+
+  // Handle the status update when the toggle is clicked
+  const handleStatusChange = async (scheduleId: string, newStatus: NonNullable<AttendanceStatus>) => {
+    if (!user) return;
+    
+    // Optimistic UI update
+    setCurrentStatus(newStatus);
+    setIsUpdating(true);
+
+    try {
+      // Upsert the attendance status directly to Supabase
+      const { error } = await supabase
+        .from('attendance')
+        .upsert({
+          user_id: user.id,
+          schedule_id: scheduleId,
+          status: newStatus,
+        }, {
+           onConflict: 'user_id,schedule_id' // Based on the UNIQUE(user_id, schedule_id) constraint in your schema
+        });
+
+      if (error) {
+        throw error;
+      }
+      
+      toast.success(`Attendance marked as ${newStatus} for ${subject}`);
+    } catch (error) {
+      console.error('Failed to update attendance:', error);
+      toast.error('Failed to update attendance. Please try again.');
+      // Revert if the network request fails
+      setCurrentStatus(initialStatus);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col rounded-xl border border-slate-200 bg-white/80 p-5 shadow-lg backdrop-blur-md transition hover:bg-white dark:border-white/20 dark:bg-slate-900/80 dark:hover:bg-slate-900">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        
+        {/* Left Side: Details */}
+        <div className="flex-1">
+          <div className="flex items-start justify-between sm:justify-start sm:gap-4 mb-2">
+            {/* Large Bold Subject */}
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+              {subject}
+            </h2>
+            {profile?.role === 'admin' && (
+              <button 
+                onClick={async () => {
+                  if(confirm('Are you sure you want to delete this schedule?')) {
+                     const { error } = await supabase.from('schedules').delete().eq('id', id);
+                     if (error) toast.error('Failed to delete schedule');
+                     else toast.success('Schedule deleted! Please refresh the page.');
+                  }
+                }}
+                className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400 transition"
+                title="Delete Schedule"
+              >
+                <Trash2 className="h-5 w-5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2 text-sm font-medium text-slate-600 dark:text-slate-300 sm:flex-row sm:items-center sm:gap-6">
+            {/* Time with Lucide Clock Icon */}
+            <div className="flex items-center gap-1.5">
+              <Clock className="h-4 w-4 text-blue-500" />
+              <span>
+                {formattedStart} - {formattedEnd}
+              </span>
+            </div>
+            
+            {/* Room with Lucide MapPin Icon */}
+            <div className="flex items-center gap-1.5">
+              <MapPin className="h-4 w-4 text-red-500" />
+              <span>{room}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Side: Toggle Switch */}
+        <div className="mt-4 flex flex-col items-start sm:mt-0 sm:items-end">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            {isUpdating ? 'Saving...' : 'Your Status'}
+          </p>
+          <div className="opacity-100 transition-opacity aria-disabled:opacity-50" aria-disabled={isUpdating}>
+            <AttendanceToggle
+              scheduleId={id}
+              currentStatus={currentStatus}
+              onStatusChange={handleStatusChange}
+            />
+          </div>
+        </div>
+        
+      </div>
+    </div>
+  );
+}
+"use client";
+
+import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -255,3 +394,183 @@ export default function AdminPanel() {
     </div>
   );
 }
+"use client";
+
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '@/utils/supabase';
+
+// Define the Profile type matching your database schema
+export interface Profile {
+  user_id: string;
+  name: string;
+  role: 'student' | 'admin' | 'teacher';
+  custom_bg_url: string | null;
+  created_at: string;
+}
+
+interface AuthContextType {
+  user: User | null;
+  profile: Profile | null;
+  loading: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signOut: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  profile: null,
+  loading: true,
+  signIn: async () => {},
+  signOut: async () => {},
+});
+
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const createProfile = async (userId: string, email: string): Promise<Profile | null> => {
+    try {
+      const newProfile: Profile = {
+        user_id: userId,
+        name: email.split('@')[0], // Use email prefix as fallback name
+        role: 'student',
+        custom_bg_url: null,
+        created_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .insert([newProfile])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating profile:', error.message);
+        return null;
+      }
+
+      console.log('Auto-created profile for user:', userId);
+      return data as Profile;
+    } catch (err) {
+      console.error('Unexpected error creating profile:', err);
+      return null;
+    }
+  };
+
+  const fetchProfile = async (userId: string, email?: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+        
+      if (error) {
+        // Profile doesn't exist - trigger auto-creation
+        if (email) {
+          console.warn('Profile not found for user, attempting auto-creation...');
+          const createdProfile = await createProfile(userId, email);
+          setProfile(createdProfile);
+        } else {
+          console.error('Error fetching profile:', error.message);
+          setProfile(null);
+        }
+      } else {
+        setProfile(data as Profile);
+      }
+    } catch (err) {
+      console.error('Unexpected error fetching profile:', err);
+      setProfile(null);
+    }
+  };
+
+  useEffect(() => {
+    // 1. Get initial session
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting session:', error.message);
+        }
+
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+        
+        if (currentUser) {
+          await fetchProfile(currentUser.id, currentUser.email);
+        }
+      } catch (err) {
+        console.error('Initialization auth error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    // 2. Listen for auth changes (login, logout, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        try {
+          const currentUser = session?.user ?? null;
+          setUser(currentUser);
+          
+          if (currentUser) {
+            await fetchProfile(currentUser.id, currentUser.email);
+          } else {
+            setProfile(null);
+          }
+        } catch (err) {
+          console.error('Auth change handling error:', err);
+        } finally {
+          setLoading(false);
+        }
+      }
+    );
+
+    // Cleanup subscription
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error('Error signing in:', error.message);
+      throw error; // Throw error so the UI can catch and display it
+    }
+  };
+
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Error signing out:', error.message);
+    } else {
+      setUser(null);
+      setProfile(null);
+    }
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+// Custom hook to use the auth context
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};

@@ -93,20 +93,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     // 1. Get initial session
     const initializeAuth = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        console.error('Error getting session:', error.message);
-      }
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting session:', error.message);
+        }
 
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      
-      if (currentUser) {
-        await fetchProfile(currentUser.id, currentUser.email);
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+        
+        if (currentUser) {
+          await fetchProfile(currentUser.id, currentUser.email);
+        }
+      } catch (err) {
+        console.error('Initialization auth error:', err);
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     };
 
     initializeAuth();
@@ -114,16 +118,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // 2. Listen for auth changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        const currentUser = session?.user ?? null;
-        setUser(currentUser);
-        
-        if (currentUser) {
-          await fetchProfile(currentUser.id, currentUser.email);
-        } else {
-          setProfile(null);
+        try {
+          const currentUser = session?.user ?? null;
+          setUser(currentUser);
+          
+          if (currentUser) {
+            await fetchProfile(currentUser.id, currentUser.email);
+          } else {
+            setProfile(null);
+          }
+        } catch (err) {
+          console.error('Auth change handling error:', err);
+        } finally {
+          setLoading(false);
         }
-        
-        setLoading(false);
       }
     );
 
