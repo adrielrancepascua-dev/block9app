@@ -12,7 +12,7 @@ export default function FreedomWallPage() {
 
   React.useEffect(() => {
     if (!loading && !user) {
-      router.push("/login");
+      router.replace("/login");
     }
   }, [user, loading, router]);
 
@@ -20,6 +20,14 @@ export default function FreedomWallPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
         Loading...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+        Redirecting to login...
       </div>
     );
   }

@@ -81,8 +81,13 @@ export default function FreedomWall() {
 
   useEffect(() => {
     if (user) {
+      setIsLoading(true);
       fetchPosts();
+      return;
     }
+
+    setPosts([]);
+    setIsLoading(false);
   }, [user]);
 
   useEffect(() => {

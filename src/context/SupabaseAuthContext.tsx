@@ -37,6 +37,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const authReadyRef = useRef(false);
 
+  const withTimeout = async (promise: PromiseLike<any>, ms: number, label: string): Promise<any> => {
+    let timeoutId: NodeJS.Timeout | null = null;
+    try {
+      return await Promise.race([
+        Promise.resolve(promise),
+        new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+        }),
+      ]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  };
+
   const createProfile = async (userId: string, email: string): Promise<Profile | null> => {
     try {
       const newProfile: Profile = {
@@ -68,11 +82,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchProfile = async (userId: string, email?: string) => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
+      const { data, error } = await withTimeout(
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', userId)
+          .single(),
+        8000,
+        'Profile fetch'
+      );
         
       if (error) {
         // Profile doesn't exist - trigger auto-creation
@@ -97,10 +115,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
+    // Last-resort failsafe so UI never gets stuck forever on Loading...
+    const loadingFailsafe = setTimeout(() => {
+      setLoading(false);
+    }, 12000);
+
     // 1. Get initial session
     const initializeAuth = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data: { session }, error } = await withTimeout(
+          supabase.auth.getSession(),
+          8000,
+          'Auth session lookup'
+        );
         
         if (error) {
           console.error('Error getting session:', error.message);
@@ -161,6 +188,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Cleanup subscription
     return () => {
+      clearTimeout(loadingFailsafe);
       subscription.unsubscribe();
     };
   }, []);
