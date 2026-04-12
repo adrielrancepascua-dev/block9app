@@ -3,11 +3,12 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/context/SupabaseAuthContext';
 import { supabase } from '@/utils/supabase';
-
-// --- Types ---
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Trash2 } from 'lucide-react';
 
 interface ProfileData {
   name: string;
+  custom_bg_url?: string;
 }
 
 interface Post {
@@ -17,79 +18,89 @@ interface Post {
   author_name: string;
   is_anonymous: boolean;
   created_at: string;
+  x_pos: number;
+  y_pos: number;
   profiles?: ProfileData;
 }
 
-// --- Component ---
+const PASTEL_COLORS = [
+  '#fdfd96', // yellow
+  '#ffb7b2', // pink/red
+  '#ffdac1', // peach
+  '#e2f0cb', // light green
+  '#b5ead7', // green
+  '#c7ceea', // blue/purple
+];
 
 export default function FreedomWall() {
   const { user, profile } = useAuth();
-  
+
   const [content, setContent] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
 
-  // Fetch posts from Supabase with author names in a single query
+  const getPostColor = (post: Post) => {
+    if (post.profiles?.custom_bg_url && post.profiles.custom_bg_url.startsWith('#')) {
+      return post.profiles.custom_bg_url;
+    }
+    let charCode = 0;
+    if (post.id) charCode = post.id.charCodeAt(post.id.length - 1) || 0;
+    return PASTEL_COLORS[charCode % PASTEL_COLORS.length];
+  };
+
   const fetchPosts = async () => {
     try {
       setError(null);
       const { data, error: fetchError } = await supabase
         .from('freedom_wall')
-        .select('*, profiles(name)')
+        .select('*, profiles(name, custom_bg_url)')
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(100);
 
       if (fetchError) throw fetchError;
 
-      // Transform data to include author_name
       const postsWithAuthors = (data || []).map((post: any) => ({
         ...post,
         author_name: post.profiles?.name || 'Unknown User',
+        x_pos: post.x_pos ?? Math.floor(Math.random() * 70) + 10,
+        y_pos: post.y_pos ?? Math.floor(Math.random() * 70) + 10,
       }));
 
       setPosts(postsWithAuthors);
     } catch (err: any) {
-      console.error('Error fetching posts:', err.message);
+      console.error('Error fetching posts:', err?.message || err);
       setError('Failed to load posts');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Initial fetch
   useEffect(() => {
     fetchPosts();
   }, []);
 
-  // Real-time subscription to new posts
   useEffect(() => {
     const channel = supabase
       .channel('freedom_wall_changes')
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'freedom_wall',
-        },
+        { event: 'INSERT', schema: 'public', table: 'freedom_wall' },
         async (payload: any) => {
           const newPost = payload.new;
-          
-          setPosts((prevPosts) => {
-            // Prevent duplicate optimistic posts when realtime fires
-            if (prevPosts.some(p => p.id === newPost.id)) {
-              return prevPosts;
-            }
-            return prevPosts;
+
+          // avoid duplicates
+          setPosts((prev) => {
+            if (prev.some((p) => p.id === newPost.id)) return prev;
+            return prev;
           });
 
-          // Fetch author profile for the new post
           const { data: profileData } = await supabase
             .from('profiles')
-            .select('name')
+            .select('name, custom_bg_url')
             .eq('user_id', newPost.author_id)
             .single();
 
@@ -100,16 +111,22 @@ export default function FreedomWall() {
             author_name: profileData?.name || 'Unknown User',
             is_anonymous: newPost.is_anonymous,
             created_at: newPost.created_at,
-            profiles: profileData ? { name: profileData.name } : undefined,
+            x_pos: newPost.x_pos ?? Math.floor(Math.random() * 70) + 10,
+            y_pos: newPost.y_pos ?? Math.floor(Math.random() * 70) + 10,
+            profiles: profileData ? { name: profileData.name, custom_bg_url: profileData.custom_bg_url } : undefined,
           };
 
-          // Add new post to the top of the list, avoiding duplicates again just in case
-          setPosts((prevPosts) => {
-            if (prevPosts.some(p => p.id === newPost.id)) {
-              return prevPosts;
-            }
-            return [postWithAuthor, ...prevPosts];
+          setPosts((prev) => {
+            if (prev.some((p) => p.id === newPost.id)) return prev;
+            return [postWithAuthor, ...prev];
           });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'freedom_wall' },
+        (payload: any) => {
+          setPosts((prev) => prev.filter((p) => p.id !== payload.old.id));
         }
       )
       .subscribe();
@@ -119,10 +136,9 @@ export default function FreedomWall() {
     };
   }, []);
 
-  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!content.trim() || !user) {
       setError('Please write something before posting');
       return;
@@ -131,14 +147,14 @@ export default function FreedomWall() {
     setIsSubmitting(true);
     setError(null);
 
-    // Capture values before clearing form
     const currentContent = content.trim();
     const currentIsAnonymous = isAnonymous;
     const createdAt = new Date().toISOString();
     const optimisticId = `temp-${Date.now()}`;
+    const randomX = Math.floor(Math.random() * 70) + 10;
+    const randomY = Math.floor(Math.random() * 70) + 10;
 
     try {
-      // Create optimistic post
       const optimisticPost: Post = {
         id: optimisticId,
         content: currentContent,
@@ -146,13 +162,13 @@ export default function FreedomWall() {
         author_name: profile?.name || 'Loading...',
         is_anonymous: currentIsAnonymous,
         created_at: createdAt,
-        profiles: { name: profile?.name || 'Loading...' }
+        x_pos: randomX,
+        y_pos: randomY,
+        profiles: { name: profile?.name || 'Loading...', custom_bg_url: profile?.custom_bg_url || undefined },
       };
 
-      // Instantly update UI with optimistic post
+      // optimistic update
       setPosts((prev) => [optimisticPost, ...prev]);
-
-      // Reset form instantly
       setContent('');
       setIsAnonymous(false);
 
@@ -163,175 +179,203 @@ export default function FreedomWall() {
           author_id: user.id,
           is_anonymous: currentIsAnonymous,
           created_at: createdAt,
+          x_pos: randomX,
+          y_pos: randomY,
         })
         .select()
         .single();
 
       if (insertError) throw insertError;
 
-      // Update the optimistic post with the real ID from database
       if (data) {
-        setPosts((prev) => 
-          prev.map((post) => post.id === optimisticId ? { ...post, id: data.id } : post)
-        );
+        // replace optimistic id with real id
+        setPosts((prev) => prev.map((post) => (post.id === optimisticId ? { ...post, id: data.id } : post)));
       }
     } catch (err: any) {
-      console.error('Error posting:', err.message);
+      console.error('Error posting:', err?.message || err);
       setError('Failed to post. Please try again.');
-      // Remove optimistic post if it failed
       setPosts((prev) => prev.filter((post) => post.id !== optimisticId));
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Handle delete (admins only)
   const handleDelete = async (postId: string) => {
     if (profile?.role !== 'admin') return;
-
     try {
-      const { error: deleteError } = await supabase
-        .from('freedom_wall')
-        .delete()
-        .eq('id', postId);
-
+      const { error: deleteError } = await supabase.from('freedom_wall').delete().eq('id', postId);
       if (deleteError) throw deleteError;
-
-      // Remove from local state
-      setPosts((prevPosts) => prevPosts.filter((post) => post.id !== postId));
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+      setSelectedPost(null);
     } catch (err: any) {
-      console.error('Error deleting post:', err.message);
-      setError('Failed to delete post');
+      console.error('Error deleting:', err?.message || err);
+      alert('Failed to delete post: ' + (err?.message || err));
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-8 p-4">
-      {/* Create Post Form */}
-      <form
-        onSubmit={handleSubmit}
-        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800"
-      >
-        <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">
-          What's on your mind?
-        </h2>
-
-        {error && (
-          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
-            {error}
-          </div>
-        )}
-
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="Share your thoughts..."
-          disabled={isSubmitting}
-          className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-4 text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
-          rows={4}
-        />
-
-        <div className="mt-4 flex items-center justify-between">
-          <label className="flex cursor-pointer items-center space-x-3">
-            <div className="relative">
-              <input
-                type="checkbox"
-                className="peer sr-only"
-                checked={isAnonymous}
-                onChange={(e) => setIsAnonymous(e.target.checked)}
+    <div className="flex flex-col h-[calc(100vh-100px)]">
+      {user && (
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800 shrink-0 relative z-20 overflow-visible">
+          <form onSubmit={handleSubmit} className="p-6">
+            <div className="mb-4">
+              <label htmlFor="content" className="sr-only">What's on your mind?</label>
+              <textarea
+                id="content"
+                rows={3}
+                placeholder="What's on your mind? (Pin it to the board!)"
+                className="w-full resize-none rounded-lg border border-slate-300 p-3 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
                 disabled={isSubmitting}
               />
-              <div className="h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:bg-slate-700 dark:border-gray-600 dark:peer-focus:ring-blue-800"></div>
             </div>
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              Post Anonymously
-            </span>
-          </label>
 
-          <button
-            type="submit"
-            disabled={!content.trim() || isSubmitting}
-            className="rounded-lg bg-blue-600 px-6 py-2 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isSubmitting ? 'Posting...' : 'Post'}
-          </button>
-        </div>
-      </form>
+            {error && <p className="mb-4 text-sm text-red-500">{error}</p>}
 
-      {/* Posts List */}
-      <div className="space-y-4">
-        {isLoading ? (
-          <div className="py-8 text-center text-slate-500 dark:text-slate-400">
-            Loading posts...
-          </div>
-        ) : posts.length === 0 ? (
-          <p className="py-8 text-center text-slate-500 dark:text-slate-400">
-            No posts yet. Be the first to share!
-          </p>
-        ) : (
-          posts.map((post) => {
-            const displayName = post.is_anonymous ? 'Anonymous Student' : post.author_name;
-            const displayInitials = displayName
-              .split(' ')
-              .map((n) => n[0])
-              .join('')
-              .toUpperCase()
-              .slice(0, 2);
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <label className="flex items-center space-x-2 text-sm text-slate-700 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  className="rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                  checked={isAnonymous}
+                  onChange={(e) => setIsAnonymous(e.target.checked)}
+                  disabled={isSubmitting}
+                />
+                <span>Post anonymously</span>
+              </label>
 
-            const publishedDate = new Date(post.created_at).toLocaleDateString(undefined, {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            });
-
-            return (
-              <div
-                key={post.id}
-                className="relative rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md dark:border-slate-700 dark:bg-slate-800"
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full sm:w-auto rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-blue-400"
               >
-                {/* Admin Delete Button */}
-                {profile?.role === 'admin' && (
-                  <button
-                    onClick={() => handleDelete(post.id)}
-                    className="absolute right-4 top-4 rounded-md p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400"
-                    aria-label="Delete post"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3 6 5 6 21 6"></polyline>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    </svg>
-                  </button>
-                )}
+                {isSubmitting ? 'Pinning...' : 'Pin Note'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
-                <div className="flex items-start space-x-4">
-                  {/* Avatar */}
-                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 bg-blue-100 font-semibold text-blue-700 dark:border-slate-700 dark:bg-blue-900/30 dark:text-blue-300">
-                    {displayInitials}
+      <div className="relative flex-1 overflow-hidden rounded-xl border-8 border-amber-800/80 bg-[url('https://www.transparenttextures.com/patterns/cork-board.png')] bg-[#d4a88c] shadow-inner mb-8 min-h-[400px]">
+        <div className="absolute inset-0 overflow-auto">
+          <div className="relative w-[200%] h-[150%] md:w-full md:h-full">
+            {posts.map((post) => {
+              let rotateDeg = 0;
+              if (post.id) rotateDeg = (post.id.charCodeAt(0) % 10) - 5;
+              return (
+                <motion.div
+                  layoutId={`post-${post.id}`}
+                  key={post.id}
+                  onClick={() => setSelectedPost(post)}
+                  className="absolute w-32 h-32 cursor-pointer shadow-md hover:shadow-xl transition-shadow p-3 flex flex-col group overflow-hidden"
+                  style={{
+                    top: `${post.y_pos}%`,
+                    left: `${post.x_pos}%`,
+                    backgroundColor: getPostColor(post),
+                    transform: `rotate(${rotateDeg}deg)`,
+                  }}
+                  whileHover={{ scale: 1.05, zIndex: 10 }}
+                >
+                  <div className="absolute top-1 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-red-500 shadow-sm border border-red-700 z-10">
+                    <div className="w-1 h-1 bg-white/60 rounded-full absolute top-[2px] left-[2px]" />
                   </div>
 
-                  {/* Post Content */}
-                  <div className="flex-1 min-w-0 pr-8">
-                    <div className="flex items-baseline space-x-2">
-                      <h3 className="truncate font-semibold text-slate-900 dark:text-white">
-                        {displayName}
-                      </h3>
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        {publishedDate}
-                      </span>
-                    </div>
+                  <p className="text-black/80 mt-3 text-xs line-clamp-4 font-mono font-medium leading-snug whitespace-pre-wrap">
+                    {post.content}
+                  </p>
 
-                    <p className="mt-2 whitespace-pre-wrap text-slate-700 dark:text-slate-300">
-                      {post.content}
-                    </p>
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/5 p-1 text-[10px] text-black/60 truncate font-semibold border-t border-black/10">
+                    {post.is_anonymous ? 'Anonymous' : post.author_name}
                   </div>
+                </motion.div>
+              );
+            })}
+
+            {posts.length === 0 && !isLoading && (
+              <div className="absolute inset-0 flex items-center justify-center p-4">
+                <div className="text-center rounded-xl bg-white/70 backdrop-blur-sm p-6 text-amber-900 border border-white/60 shadow-sm">
+                  <p className="text-lg font-bold">The whiteboard is empty</p>
+                  <p className="text-sm mt-1">Be the first to pin a note!</p>
                 </div>
               </div>
-            );
-          })
-        )}
+            )}
+          </div>
+        </div>
       </div>
+
+      <AnimatePresence>
+        {selectedPost && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 cursor-pointer"
+              onClick={() => setSelectedPost(null)}
+            />
+
+            <motion.div
+              layoutId={`post-${selectedPost.id}`}
+              className="relative w-full max-w-md p-8 shadow-2xl z-10 flex flex-col max-h-[80vh] overflow-y-auto rounded-sm"
+              style={{
+                backgroundColor: getPostColor(selectedPost),
+                minHeight: '300px',
+              }}
+            >
+              <div className="absolute top-4 right-4 flex gap-2">
+                {profile?.role === 'admin' && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(selectedPost.id);
+                    }}
+                    className="p-2 text-black/60 hover:text-red-600 hover:bg-black/10 rounded-full transition-colors focus:outline-none"
+                    title="Delete Post"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                )}
+                <button
+                  onClick={() => setSelectedPost(null)}
+                  className="p-2 text-black/60 hover:text-black hover:bg-black/10 rounded-full transition-colors focus:outline-none"
+                  title="Close"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="flex-1 mt-6">
+                <p className="text-black/90 text-lg sm:text-xl font-medium font-mono whitespace-pre-wrap leading-relaxed">
+                  {selectedPost.content}
+                </p>
+              </div>
+
+              <div className="mt-8 border-t border-black/20 pt-4 flex justify-between items-center text-sm text-black/70">
+                <span className="font-bold flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-black/20" />
+                  {selectedPost.is_anonymous ? 'Anonymous' : selectedPost.author_name}
+                </span>
+                <span className="opacity-80">
+                  {new Date(selectedPost.created_at).toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                </span>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
