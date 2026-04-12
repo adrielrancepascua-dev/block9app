@@ -43,14 +43,11 @@ export default function Home() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const startOfDay = today.toISOString();
-      today.setHours(23, 59, 59, 999);
-      const endOfDay = today.toISOString();
 
       const { data: scheduleData, error: scheduleError } = await supabase
         .from("schedules")
         .select("*")
         .gte("start_time", startOfDay)
-        .lte("start_time", endOfDay)
         .order("start_time", { ascending: true });
 
       if (scheduleError) throw scheduleError;
@@ -95,7 +92,7 @@ export default function Home() {
               Hi, {profile?.name || "Student"} 👋
             </h1>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-200">
-              Here is your schedule for today.
+              Here are your upcoming schedules.
             </p>
           </div>
 

@@ -5,7 +5,7 @@ const withPWA = withPWAInit({
   cacheOnFrontEndNav: false, // Disabled to prevent stale loading state cache
   aggressiveFrontEndNavCaching: false, // Disabled during development to prevent caching issues
   reloadOnOnline: true,
-  disable: process.env.NODE_ENV === "development",
+  disable: true, // Temporarily disabled entirely to fix Service Worker lag
   workboxOptions: {
     disableDevLogs: true,
   }

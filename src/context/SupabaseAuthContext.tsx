@@ -1,8 +1,8 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { User, Session } from '@supabase/supabase-js';
+import { User } from '@supabase/supabase-js';
 import { supabase } from '@/utils/supabase';
 
 // Define the Profile type matching your database schema
@@ -35,6 +35,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const authReadyRef = useRef(false);
 
   const createProfile = async (userId: string, email: string): Promise<Profile | null> => {
     try {
@@ -113,11 +114,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           await fetchProfile(currentUser.id, currentUser.email);
         } else {
           // CRITICAL: No session found - must explicitly clear loading
+          setProfile(null);
           setLoading(false);
         }
       } catch (err) {
         console.error('Initialization auth error:', err);
         setLoading(false); // Ensure loading stops on error too
+      } finally {
+        authReadyRef.current = true;
       }
     };
 
@@ -128,16 +132,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       async (event, session) => {
         try {
           const currentUser = session?.user ?? null;
-          setUser(currentUser);
-          
-          if (currentUser) {
-            // fetchProfile has its own finally block that sets loading to false
-            await fetchProfile(currentUser.id, currentUser.email);
-          } else {
-            // CRITICAL: User logged out or no session - clear everything and stop loading
+          if (event === 'SIGNED_OUT') {
+            setUser(null);
             setProfile(null);
             setLoading(false);
+            return;
           }
+
+          if (!currentUser) {
+            if (!authReadyRef.current) {
+              return;
+            }
+
+            // Ignore transient null sessions so the app doesn't flicker away.
+            setLoading(false);
+            return;
+          }
+
+          setUser(currentUser);
+          // fetchProfile has its own finally block that sets loading to false
+          await fetchProfile(currentUser.id, currentUser.email);
         } catch (err) {
           console.error('Auth change handling error:', err);
           setLoading(false); // Ensure loading stops on error too

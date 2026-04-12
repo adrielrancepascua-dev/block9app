@@ -19,41 +19,6 @@ const scheduleSchema = z
 
 type ScheduleFormValues = z.infer<typeof scheduleSchema>;
 
-// --- Helper Functions to Generate Options ---
-const generateDateOptions = () => {
-  const options = [];
-  const today = new Date();
-  for (let i = 0; i < 30; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    
-    // Value: YYYY-MM-DD
-    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    
-    // Label: "Mon, Apr 12"
-    let label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-    if (i === 0) label = "Today (" + label + ")";
-    if (i === 1) label = "Tomorrow (" + label + ")";
-
-    options.push({ value, label });
-  }
-  return options;
-};
-
-const generateTimeOptions = () => {
-  const options = [];
-  for (let h = 6; h <= 20; h++) { // 6 AM to 8 PM
-    for (let m of ['00', '30']) {
-      const isPM = h >= 12;
-      const displayH = h > 12 ? h - 12 : h;
-      const label = `${displayH}:${m} ${isPM ? 'PM' : 'AM'}`;
-      const value = `${String(h).padStart(2, '0')}:${m}`;
-      options.push({ value, label });
-    }
-  }
-  return options;
-};
-
 // --- Component ---
 export default function AdminPanel() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -71,13 +36,12 @@ export default function AdminPanel() {
   const onSubmit = async (data: ScheduleFormValues) => {
     setIsSubmitting(true);
     try {
-      // Construct ISO format timestamp for start time
-      const startDateTime = `${data.date}T${data.startTime}:00`;
-      
-      // Auto-compute an end time 1 hour after start to satisfy any NOT NULL constraints
-      const startDateObj = new Date(startDateTime);
-      startDateObj.setHours(startDateObj.getHours() + 1);
-      const endDateTime = startDateObj.toISOString();
+      // Construct a local date/time and convert both values to ISO for Supabase
+      const startDateObj = new Date(`${data.date}T${data.startTime}:00`);
+      const endDateObj = new Date(startDateObj);
+      endDateObj.setHours(endDateObj.getHours() + 1);
+      const startDateTime = startDateObj.toISOString();
+      const endDateTime = endDateObj.toISOString();
 
       // Insert the new schedule into Supabase
       const { error } = await supabase
@@ -166,24 +130,20 @@ export default function AdminPanel() {
           <div className="space-y-6 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-6">
             
             {/* Date Selection */}
-            <div className="sm:col-span-2">
+            <div className="sm:col-span-1">
               <label htmlFor="date" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                 Date
               </label>
-              <select
+              <input
                 id="date"
+                type="date"
                 className={`mt-1 block w-full rounded-lg border bg-white px-4 py-3 text-slate-900 shadow-sm focus:outline-none focus:ring-2 dark:bg-slate-900 dark:text-white ${
                   errors.date
                     ? 'border-red-500 focus:border-red-500 focus:ring-red-200 dark:border-red-500/50 dark:focus:ring-red-900'
                     : 'border-slate-300 focus:border-blue-500 focus:ring-blue-200 dark:border-slate-600 dark:focus:ring-blue-900'
                 }`}
                 {...register('date')}
-              >
-                <option value="">Select Date...</option>
-                {generateDateOptions().map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
+              />
               {errors.date && (
                 <p className="mt-1 text-sm text-red-500">{errors.date.message}</p>
               )}
@@ -194,20 +154,16 @@ export default function AdminPanel() {
               <label htmlFor="startTime" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                 Start Time
               </label>
-              <select
+              <input
                 id="startTime"
+                type="time"
                 className={`mt-1 block w-full rounded-lg border bg-white px-4 py-3 text-slate-900 shadow-sm focus:outline-none focus:ring-2 dark:bg-slate-900 dark:text-white ${
                   errors.startTime
                     ? 'border-red-500 focus:border-red-500 focus:ring-red-200 dark:border-red-500/50 dark:focus:ring-red-900'
                     : 'border-slate-300 focus:border-blue-500 focus:ring-blue-200 dark:border-slate-600 dark:focus:ring-blue-900'
                 }`}
                 {...register('startTime')}
-              >
-                <option value="">Select Time...</option>
-                {generateTimeOptions().map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
+              />
               {errors.startTime && (
                 <p className="mt-1 text-sm text-red-500">{errors.startTime.message}</p>
               )}
