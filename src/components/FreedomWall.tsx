@@ -32,6 +32,9 @@ const PASTEL_COLORS = [
   '#c7ceea', // blue/purple
 ];
 
+const CLEAR_VOTE_TARGET = 35;
+const CLEAR_VOTE_THRESHOLD = Math.ceil(CLEAR_VOTE_TARGET * 0.75);
+
 export default function FreedomWall() {
   const { user, profile } = useAuth();
 
@@ -45,8 +48,16 @@ export default function FreedomWall() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isPlacing, setIsPlacing] = useState(false);
   const [draftPosition, setDraftPosition] = useState({ x: 50, y: 50 });
+  const [clearVoteCount, setClearVoteCount] = useState(0);
+  const [hasVotedToClear, setHasVotedToClear] = useState(false);
+  const [isVoting, setIsVoting] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+  const [voteError, setVoteError] = useState<string | null>(null);
+  const [isVoteFeatureAvailable, setIsVoteFeatureAvailable] = useState(true);
 
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+  const clearProgress = Math.min(100, (clearVoteCount / CLEAR_VOTE_TARGET) * 100);
+  const canAdminClear = clearVoteCount >= CLEAR_VOTE_THRESHOLD;
 
   const getPostColor = (post: Post) => {
     if (post.profiles?.custom_bg_url && post.profiles.custom_bg_url.startsWith('#')) {
@@ -55,6 +66,38 @@ export default function FreedomWall() {
     let charCode = 0;
     if (post.id) charCode = post.id.charCodeAt(post.id.length - 1) || 0;
     return PASTEL_COLORS[charCode % PASTEL_COLORS.length];
+  };
+
+  const fetchClearVotes = async () => {
+    if (!user) {
+      setClearVoteCount(0);
+      setHasVotedToClear(false);
+      setVoteError(null);
+      return;
+    }
+
+    try {
+      const [{ count, error: countError }, { data: myVotes, error: myVotesError }] = await Promise.all([
+        supabase.from('freedom_wall_clear_votes').select('user_id', { count: 'exact', head: true }),
+        supabase.from('freedom_wall_clear_votes').select('user_id').eq('user_id', user.id).limit(1),
+      ]);
+
+      if (countError?.code === '42P01' || myVotesError?.code === '42P01') {
+        setIsVoteFeatureAvailable(false);
+        return;
+      }
+
+      if (countError) throw countError;
+      if (myVotesError) throw myVotesError;
+
+      setIsVoteFeatureAvailable(true);
+      setClearVoteCount(count ?? 0);
+      setHasVotedToClear((myVotes?.length ?? 0) > 0);
+      setVoteError(null);
+    } catch (err: any) {
+      console.error('Error fetching clear votes:', err?.message || err);
+      setVoteError('Vote status is temporarily unavailable.');
+    }
   };
 
   const fetchPosts = async (showSpinner = true) => {
@@ -94,10 +137,14 @@ export default function FreedomWall() {
     if (user) {
       setIsLoading(true);
       fetchPosts(true);
+      fetchClearVotes();
       return;
     }
 
     setPosts([]);
+    setClearVoteCount(0);
+    setHasVotedToClear(false);
+    setVoteError(null);
     setIsLoading(false);
   }, [user]);
 
@@ -106,6 +153,7 @@ export default function FreedomWall() {
 
     const refresh = () => {
       fetchPosts(false);
+      fetchClearVotes();
     };
 
     const intervalId = setInterval(refresh, 60000);
@@ -116,6 +164,25 @@ export default function FreedomWall() {
       clearInterval(intervalId);
       window.removeEventListener('focus', refresh);
       window.removeEventListener('online', refresh);
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const voteChannel = supabase
+      .channel('freedom_wall_clear_vote_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'freedom_wall_clear_votes' },
+        () => {
+          fetchClearVotes();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      voteChannel.unsubscribe();
     };
   }, [user]);
 
@@ -268,6 +335,76 @@ export default function FreedomWall() {
     }
   };
 
+  const handleVoteToClear = async () => {
+    if (!user || hasVotedToClear || !isVoteFeatureAvailable) return;
+
+    setIsVoting(true);
+    setVoteError(null);
+    try {
+      const { error: voteInsertError } = await supabase
+        .from('freedom_wall_clear_votes')
+        .upsert({ user_id: user.id, created_at: new Date().toISOString() }, { onConflict: 'user_id' });
+
+      if (voteInsertError?.code === '42P01') {
+        setIsVoteFeatureAvailable(false);
+        setVoteError('Clear-vote feature is not set up in the database yet.');
+        return;
+      }
+
+      if (voteInsertError) throw voteInsertError;
+      await fetchClearVotes();
+    } catch (err: any) {
+      console.error('Error voting to clear wall:', err?.message || err);
+      setVoteError('Could not submit your vote right now.');
+    } finally {
+      setIsVoting(false);
+    }
+  };
+
+  const handleAdminClearAll = async () => {
+    if (profile?.role !== 'admin') return;
+    if (!canAdminClear) {
+      setVoteError(`Need at least ${CLEAR_VOTE_THRESHOLD} votes before clearing.`);
+      return;
+    }
+
+    const confirmed = confirm('Clear all Freedom Wall notes now? This cannot be undone.');
+    if (!confirmed) return;
+
+    setIsClearing(true);
+    setVoteError(null);
+    try {
+      const postIds = posts.map((post) => post.id);
+      if (postIds.length > 0) {
+        const { error: deletePostsError } = await supabase
+          .from('freedom_wall')
+          .delete()
+          .in('id', postIds);
+
+        if (deletePostsError) throw deletePostsError;
+      }
+
+      const { error: resetVotesError } = await supabase
+        .from('freedom_wall_clear_votes')
+        .delete()
+        .not('user_id', 'is', null);
+
+      if (resetVotesError && resetVotesError.code !== '42P01') {
+        throw resetVotesError;
+      }
+
+      setPosts([]);
+      setClearVoteCount(0);
+      setHasVotedToClear(false);
+      setSelectedPost(null);
+    } catch (err: any) {
+      console.error('Error clearing Freedom Wall:', err?.message || err);
+      setVoteError('Could not clear the wall right now.');
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -298,6 +435,56 @@ export default function FreedomWall() {
             </div>
 
             {error && <p className="mb-4 text-sm text-red-500">{error}</p>}
+
+            {isVoteFeatureAvailable && (
+              <div className="mb-4 rounded-lg border border-slate-300 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-900/60">
+                <div className="flex items-center justify-between text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  <span>Clear Wall Vote Progress</span>
+                  <span>{clearVoteCount}/{CLEAR_VOTE_TARGET}</span>
+                </div>
+
+                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    style={{ width: `${clearProgress}%` }}
+                  />
+                </div>
+
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  Needs {CLEAR_VOTE_THRESHOLD} votes (75%) before admins can clear all notes.
+                </p>
+
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={handleVoteToClear}
+                    disabled={isVoting || hasVotedToClear || !user}
+                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    {hasVotedToClear ? 'You already voted' : isVoting ? 'Submitting vote...' : 'Vote to clear wall'}
+                  </button>
+
+                  {profile?.role === 'admin' && (
+                    <button
+                      type="button"
+                      onClick={handleAdminClearAll}
+                      disabled={!canAdminClear || isClearing}
+                      className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isClearing ? 'Clearing wall...' : `Admin clear all (${CLEAR_VOTE_THRESHOLD}+ votes)`}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {!isVoteFeatureAvailable && (
+              <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                Vote-to-clear is not configured in the database yet.
+              </div>
+            )}
+
+            {voteError && <p className="mb-4 text-sm text-red-500">{voteError}</p>}
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <label className="flex items-center space-x-2 text-sm text-slate-700 dark:text-slate-300">
