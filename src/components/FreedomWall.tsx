@@ -80,8 +80,10 @@ export default function FreedomWall() {
   };
 
   useEffect(() => {
-    fetchPosts();
-  }, []);
+    if (user) {
+      fetchPosts();
+    }
+  }, [user]);
 
   useEffect(() => {
     const channel = supabase

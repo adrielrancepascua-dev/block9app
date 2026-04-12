@@ -1,19 +1,6 @@
-import withPWAInit from "@ducanh2912/next-pwa";
-
-const withPWA = withPWAInit({
-  dest: "public",
-  cacheOnFrontEndNav: false, // Disabled to prevent stale loading state cache
-  aggressiveFrontEndNavCaching: false, // Disabled during development to prevent caching issues
-  reloadOnOnline: true,
-  disable: true, // Temporarily disabled entirely to fix Service Worker lag
-  workboxOptions: {
-    disableDevLogs: true,
-  }
-});
-
 /** @type {import("next").NextConfig} */
 const nextConfig = {
-  turbopack: {},
+  // Let default Next settings handle routing; no PWA interception.
 };
 
-export default withPWA(nextConfig);
+export default nextConfig;

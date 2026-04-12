@@ -49,14 +49,10 @@ export default function Home() {
   const fetchDashboardData = async () => {
     setIsFetching(true);
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const startOfDay = today.toISOString();
-
+      // Removing startOfDay filter so schedules don't mysteriously vanish 
       const { data: scheduleData, error: scheduleError } = await supabase
         .from("schedules")
         .select("*")
-        .gte("start_time", startOfDay)
         .order("start_time", { ascending: true });
 
       if (scheduleError) throw scheduleError;
