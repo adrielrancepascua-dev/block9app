@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/context/SupabaseAuthContext';
 import { supabase } from '@/utils/supabase';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type PanInfo } from 'framer-motion';
 import { X, Trash2 } from 'lucide-react';
 
 interface ProfileData {
@@ -54,6 +54,7 @@ export default function FreedomWall() {
   const [voteError, setVoteError] = useState<string | null>(null);
   const [isVoteFeatureAvailable, setIsVoteFeatureAvailable] = useState(true);
   const boardRef = useRef<HTMLDivElement | null>(null);
+  const lastDragTimestampRef = useRef(0);
 
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
   const clearProgress = Math.min(100, (clearVoteCount / CLEAR_VOTE_TARGET) * 100);
@@ -97,6 +98,26 @@ export default function FreedomWall() {
       console.error('Error fetching clear votes:', err?.message || err);
       setVoteError('Vote status is temporarily unavailable.');
     }
+  };
+
+  const getPositionFromElement = (element: HTMLElement) => {
+    const board = boardRef.current;
+    if (!board) return null;
+
+    const boardRect = board.getBoundingClientRect();
+    const noteRect = element.getBoundingClientRect();
+
+    if (!boardRect.width || !boardRect.height) return null;
+
+    const rawX = ((noteRect.left - boardRect.left) / boardRect.width) * 100;
+    const rawY = ((noteRect.top - boardRect.top) / boardRect.height) * 100;
+    const widthPercent = (noteRect.width / boardRect.width) * 100;
+    const heightPercent = (noteRect.height / boardRect.height) * 100;
+
+    return {
+      x: clamp(rawX, 0, Math.max(0, 100 - widthPercent)),
+      y: clamp(rawY, 0, Math.max(0, 100 - heightPercent)),
+    };
   };
 
   const fetchPosts = async (showSpinner = true) => {
@@ -231,6 +252,26 @@ export default function FreedomWall() {
           setPosts((prev) => prev.filter((p) => p.id !== payload.old.id));
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'freedom_wall' },
+        (payload: any) => {
+          const updatedPost = payload.new;
+          setPosts((prev) =>
+            prev.map((post) =>
+              post.id === updatedPost.id
+                ? {
+                    ...post,
+                    x_pos: updatedPost.x_pos ?? post.x_pos,
+                    y_pos: updatedPost.y_pos ?? post.y_pos,
+                    content: updatedPost.content ?? post.content,
+                    is_anonymous: updatedPost.is_anonymous ?? post.is_anonymous,
+                  }
+                : post
+            )
+          );
+        }
+      )
       .subscribe();
 
     return () => {
@@ -356,6 +397,55 @@ export default function FreedomWall() {
     } catch (err: any) {
       console.error('Error deleting:', err?.message || err);
       alert('Failed to delete post: ' + (err?.message || err));
+    }
+  };
+
+  const handleNoteDragEnd = async (
+    postId: string,
+    previousPosition: { x: number; y: number },
+    _event: MouseEvent | TouchEvent | PointerEvent,
+    _info: PanInfo
+  ) => {
+    const board = boardRef.current;
+    if (!board) return;
+
+    const noteElement = board.querySelector<HTMLElement>(`[data-note-id="${postId}"]`);
+    if (!noteElement) return;
+
+    const nextPosition = getPositionFromElement(noteElement);
+    if (!nextPosition) return;
+
+    lastDragTimestampRef.current = Date.now();
+
+    if (
+      Math.abs(nextPosition.x - previousPosition.x) < 0.2 &&
+      Math.abs(nextPosition.y - previousPosition.y) < 0.2
+    ) {
+      return;
+    }
+
+    const roundedPosition = {
+      x: Math.round(nextPosition.x),
+      y: Math.round(nextPosition.y),
+    };
+
+    setPosts((prev) =>
+      prev.map((post) => (post.id === postId ? { ...post, x_pos: roundedPosition.x, y_pos: roundedPosition.y } : post))
+    );
+
+    const { error: updatePositionError } = await supabase
+      .from('freedom_wall')
+      .update({ x_pos: roundedPosition.x, y_pos: roundedPosition.y })
+      .eq('id', postId);
+
+    if (updatePositionError) {
+      console.error('Error updating note position:', updatePositionError.message);
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.id === postId ? { ...post, x_pos: previousPosition.x, y_pos: previousPosition.y } : post
+        )
+      );
+      setError('Could not save note position right now.');
     }
   };
 
@@ -566,15 +656,24 @@ export default function FreedomWall() {
                   layoutId={`post-${post.id}`}
                   key={post.id}
                   data-note-card="true"
+                  data-note-id={post.id}
                   onClick={() => {
+                    if (Date.now() - lastDragTimestampRef.current < 200) return;
                     setSelectedPost(post);
                   }}
+                  drag
+                  dragConstraints={boardRef}
+                  dragMomentum={false}
+                  dragElastic={0}
+                  onDragEnd={(event, info) =>
+                    handleNoteDragEnd(post.id, { x: post.x_pos, y: post.y_pos }, event, info)
+                  }
                   className="group absolute flex h-28 w-28 cursor-pointer flex-col overflow-hidden p-2.5 shadow-md transition-shadow hover:shadow-xl sm:h-32 sm:w-32 sm:p-3"
                   style={{
                     top: `${post.y_pos}%`,
                     left: `${post.x_pos}%`,
                     backgroundColor: getPostColor(post),
-                    transform: `rotate(${rotateDeg}deg)`,
+                    rotate: `${rotateDeg}deg`,
                   }}
                   whileHover={{ scale: 1.05, zIndex: 10 }}
                 >
