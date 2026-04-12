@@ -407,9 +407,10 @@ export default function Home() {
                       <button
                         type="button"
                         onClick={() => openDayEvents(daySchedules, cell.date)}
-                        className="w-full rounded-sm border border-emerald-400/35 bg-emerald-600/75 px-1.5 py-1 text-center text-[10px] font-semibold text-emerald-50 shadow-sm backdrop-blur-md transition hover:bg-emerald-600/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70 sm:hidden"
+                        aria-label={`${daySchedules.length} event${daySchedules.length > 1 ? "s" : ""}`}
+                        className="w-full rounded-sm border border-emerald-400/35 bg-emerald-600/85 px-1 py-2 text-center shadow-sm backdrop-blur-md transition hover:bg-emerald-600/95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70 sm:hidden"
                       >
-                        {daySchedules.length} event{daySchedules.length > 1 ? "s" : ""}
+                        <span className="block text-white text-lg font-extrabold leading-tight">{daySchedules.length}</span>
                       </button>
                     )}
 
