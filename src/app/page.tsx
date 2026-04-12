@@ -1,11 +1,11 @@
-﻿"use client";
+"use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import ProfileLayout from "@/components/ProfileLayout";
 import { supabase } from "@/utils/supabase";
-import ScheduleCard from "@/components/ScheduleCard";
+import { CalendarDays, Clock3, MapPin, X } from "lucide-react";
 
 interface Schedule {
   id: string;
@@ -15,25 +15,65 @@ interface Schedule {
   end_time: string;
 }
 
-interface AttendanceSummary {
-  going: string[];
-  late: string[];
-  absent: string[];
+interface DayCell {
+  key: string;
+  date: Date;
+  inCurrentMonth: boolean;
 }
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const toDateKey = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate()
+  ).padStart(2, "0")}`;
+
+const formatTime = (timeStr?: string) => {
+  if (!timeStr) return "TBA";
+  const d = new Date(timeStr);
+  if (Number.isNaN(d.getTime())) return "TBA";
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
+
+const formatDate = (timeStr?: string) => {
+  if (!timeStr) return "TBA";
+  const d = new Date(timeStr);
+  if (Number.isNaN(d.getTime())) return "TBA";
+  return d.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const buildMonthGrid = (year: number, month: number): DayCell[] => {
+  const firstDay = new Date(year, month, 1);
+  const gridStart = new Date(firstDay);
+  gridStart.setDate(firstDay.getDate() - firstDay.getDay());
+
+  return Array.from({ length: 42 }, (_, i) => {
+    const day = new Date(gridStart);
+    day.setDate(gridStart.getDate() + i);
+    return {
+      key: toDateKey(day),
+      date: day,
+      inCurrentMonth: day.getMonth() === month,
+    };
+  });
+};
 
 export default function Home() {
   const { user, profile, loading, signOut } = useAuth();
   const router = useRouter();
 
   const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [attendance, setAttendance] = useState<
-    Record<string, "going" | "late" | "absent" | null>
-  >({});
-  const [attendanceSummary, setAttendanceSummary] = useState<
-    Record<string, AttendanceSummary>
-  >({});
   const [isFetching, setIsFetching] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
+
+  const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
+  const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
 
   useEffect(() => {
     if (!loading && !user) {
@@ -43,67 +83,23 @@ export default function Home() {
 
   useEffect(() => {
     if (user) {
-      fetchDashboardData();
+      fetchSchedules();
     }
   }, [user]);
 
-  const fetchDashboardData = async () => {
+  const fetchSchedules = async () => {
     setIsFetching(true);
     setFetchError(null);
     try {
-      // Removing startOfDay filter so schedules don't mysteriously vanish 
       const { data: scheduleData, error: scheduleError } = await supabase
         .from("schedules")
-        .select("*")
+        .select("id, subject, room, start_time, end_time")
         .order("start_time", { ascending: true });
 
       if (scheduleError) throw scheduleError;
       setSchedules(scheduleData || []);
-
-      let attendanceData: any[] = [];
-      if ((scheduleData || []).length > 0) {
-        const { data, error: attendanceError } = await supabase
-          .from("attendance")
-          .select("schedule_id, status, user_id, profiles(name)")
-          .in(
-            "schedule_id",
-            (scheduleData || []).map((schedule) => schedule.id)
-          );
-
-        if (attendanceError) throw attendanceError;
-        attendanceData = data || [];
-      }
-
-      const attendanceMap: Record<
-        string,
-        "going" | "late" | "absent" | null
-      > = {};
-      const attendanceSummaryMap: Record<string, AttendanceSummary> = {};
-
-      attendanceData.forEach((record: any) => {
-        const status = record.status as "going" | "late" | "absent";
-        const displayName =
-          record.user_id === user?.id ? "You" : record.profiles?.name || "Guest";
-
-        if (record.user_id === user?.id) {
-          attendanceMap[record.schedule_id] = status;
-        }
-
-        if (!attendanceSummaryMap[record.schedule_id]) {
-          attendanceSummaryMap[record.schedule_id] = {
-            going: [],
-            late: [],
-            absent: [],
-          };
-        }
-
-        attendanceSummaryMap[record.schedule_id][status].push(displayName);
-      });
-
-      setAttendance(attendanceMap);
-      setAttendanceSummary(attendanceSummaryMap);
     } catch (err: any) {
-      console.error("Error fetching dashboard data:", err.message);
+      console.error("Error fetching schedules:", err.message);
       setFetchError("Could not refresh schedules right now. Retrying automatically...");
     } finally {
       setIsFetching(false);
@@ -114,7 +110,7 @@ export default function Home() {
     if (!user) return;
 
     const handleRefetch = () => {
-      fetchDashboardData();
+      fetchSchedules();
     };
 
     const intervalId = setInterval(handleRefetch, 60000);
@@ -127,6 +123,61 @@ export default function Home() {
       window.removeEventListener("online", handleRefetch);
     };
   }, [user]);
+
+  const monthGrid = useMemo(() => buildMonthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
+
+  const schedulesByDay = useMemo(() => {
+    const grouped: Record<string, Schedule[]> = {};
+
+    schedules.forEach((schedule) => {
+      const d = new Date(schedule.start_time);
+      if (Number.isNaN(d.getTime())) return;
+      const key = toDateKey(d);
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(schedule);
+    });
+
+    Object.values(grouped).forEach((list) => {
+      list.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+    });
+
+    return grouped;
+  }, [schedules]);
+
+  const monthTitle = useMemo(
+    () =>
+      new Date(viewYear, viewMonth, 1).toLocaleDateString(undefined, {
+        month: "long",
+        year: "numeric",
+      }),
+    [viewYear, viewMonth]
+  );
+
+  const goToPreviousMonth = () => {
+    setViewMonth((prev) => {
+      if (prev === 0) {
+        setViewYear((y) => y - 1);
+        return 11;
+      }
+      return prev - 1;
+    });
+  };
+
+  const goToNextMonth = () => {
+    setViewMonth((prev) => {
+      if (prev === 11) {
+        setViewYear((y) => y + 1);
+        return 0;
+      }
+      return prev + 1;
+    });
+  };
+
+  const goToCurrentMonth = () => {
+    const now = new Date();
+    setViewYear(now.getFullYear());
+    setViewMonth(now.getMonth());
+  };
 
   if (loading) {
     return (
@@ -147,65 +198,181 @@ export default function Home() {
   return (
     <ProfileLayout>
       <div className="w-full">
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-slate-800 drop-shadow-md dark:text-white">
-              Hi, {profile?.name || "Student"} 👋
+            <h1 className="text-2xl font-bold text-slate-800 drop-shadow-md sm:text-3xl dark:text-white">
+              Hi, {profile?.name || "Student"}
             </h1>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-200">
-              Here are your upcoming schedules.
+              Tap or click a green schedule to view room and exact time.
             </p>
           </div>
 
-          <div className="space-x-3">
+          <div className="flex flex-wrap items-center gap-2">
             {profile?.role === "admin" && (
               <button
                 onClick={() => router.push("/admin")}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-blue-700"
+                className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow hover:bg-blue-700"
               >
                 Manage Schedules
               </button>
             )}
             <button
               onClick={signOut}
-              className="rounded-lg border border-slate-300 bg-transparent px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/20 dark:text-white dark:hover:bg-white/10"
+              className="rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/20 dark:text-white dark:hover:bg-white/10"
             >
               Sign out
             </button>
           </div>
         </div>
 
-        <div className="space-y-4">
-          {fetchError && (
-            <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              {fetchError}
+        {fetchError && (
+          <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {fetchError}
+          </div>
+        )}
+
+        <div className="rounded-xl border border-slate-200 bg-white/85 p-3 shadow-lg backdrop-blur-md dark:border-white/20 dark:bg-slate-900/80 sm:p-4">
+          <div className="mb-3 flex items-center justify-between gap-2 sm:mb-4">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={goToPreviousMonth}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-white/20 dark:text-white dark:hover:bg-white/10"
+              >
+                Prev
+              </button>
+              <button
+                type="button"
+                onClick={goToCurrentMonth}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-white/20 dark:text-white dark:hover:bg-white/10"
+              >
+                Today
+              </button>
+            </div>
+
+            <h2 className="text-base font-bold text-slate-800 sm:text-2xl dark:text-white">{monthTitle}</h2>
+
+            <button
+              type="button"
+              onClick={goToNextMonth}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-white/20 dark:text-white dark:hover:bg-white/10"
+            >
+              Next
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 border border-slate-200 dark:border-white/10">
+            {WEEKDAYS.map((weekday) => (
+              <div
+                key={weekday}
+                className="min-h-9 border-b border-r border-slate-200 bg-slate-100 px-1 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600 last:border-r-0 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 sm:min-h-11 sm:px-2 sm:text-xs"
+              >
+                {weekday}
+              </div>
+            ))}
+
+            {monthGrid.map((cell, index) => {
+              const isLastCol = index % 7 === 6;
+              const daySchedules = schedulesByDay[cell.key] || [];
+              const isToday = toDateKey(cell.date) === toDateKey(new Date());
+
+              return (
+                <div
+                  key={cell.key}
+                  className={`min-h-24 border-b border-r border-slate-200 p-1.5 sm:min-h-32 sm:p-2 ${
+                    isLastCol ? "border-r-0" : ""
+                  } ${cell.inCurrentMonth ? "bg-white/70 dark:bg-slate-900/40" : "bg-slate-100/80 dark:bg-slate-900/20"} dark:border-white/10`}
+                >
+                  <div className="mb-1 flex items-center justify-between">
+                    <span
+                      className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-xs font-semibold sm:h-7 sm:min-w-7 ${
+                        isToday
+                          ? "bg-blue-600 text-white"
+                          : cell.inCurrentMonth
+                          ? "text-slate-700 dark:text-slate-200"
+                          : "text-slate-400 dark:text-slate-500"
+                      }`}
+                    >
+                      {cell.date.getDate()}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    {daySchedules.slice(0, 3).map((schedule) => (
+                      <button
+                        key={schedule.id}
+                        type="button"
+                        onClick={() => setSelectedSchedule(schedule)}
+                        className="w-full truncate rounded-md bg-green-700 px-2 py-1 text-left text-[11px] font-semibold text-white shadow-sm hover:bg-green-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/70 sm:text-xs"
+                        title={`${schedule.subject} (${formatTime(schedule.start_time)} - ${formatTime(
+                          schedule.end_time
+                        )})`}
+                      >
+                        {schedule.subject}
+                      </button>
+                    ))}
+
+                    {daySchedules.length > 3 && (
+                      <p className="px-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                        +{daySchedules.length - 3} more
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {!isFetching && schedules.length === 0 && (
+            <div className="mt-4 rounded-lg border border-slate-200 bg-white/60 p-6 text-center text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+              No schedules yet for this month.
             </div>
           )}
-          {isFetching ? (
-            <div className="flex py-12 justify-center">
-              <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-300 border-t-blue-600 dark:border-white/20 dark:border-t-blue-500"></div>
+
+          {isFetching && (
+            <div className="mt-4 flex justify-center py-6">
+              <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-300 border-t-blue-600 dark:border-white/20 dark:border-t-blue-500" />
             </div>
-          ) : schedules.length === 0 ? (
-            <div className="rounded-xl border border-slate-200 bg-white/50 p-8 text-center text-slate-700 backdrop-blur-md dark:border-white/20 dark:bg-white/5 dark:text-white">
-              No classes today - enjoy the rest!
-            </div>
-          ) : (
-            schedules.map((sched) => (
-              <ScheduleCard
-                key={sched.id}
-                id={sched.id}
-                subject={sched.subject}
-                room={sched.room}
-                start_time={sched.start_time}
-                end_time={sched.end_time}
-                initialStatus={attendance[sched.id] || null}
-                attendanceSummary={attendanceSummary[sched.id] || null}
-              />
-            ))
           )}
         </div>
       </div>
+
+      {selectedSchedule && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center sm:p-6" onClick={() => setSelectedSchedule(null)}>
+          <div
+            className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-white/10 dark:bg-slate-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-start justify-between">
+              <h3 className="pr-2 text-xl font-bold text-slate-900 dark:text-white">{selectedSchedule.subject}</h3>
+              <button
+                type="button"
+                className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
+                onClick={() => setSelectedSchedule(null)}
+                aria-label="Close schedule details"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2 text-sm text-slate-700 dark:text-slate-200">
+              <p className="flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-blue-500" />
+                {formatDate(selectedSchedule.start_time)}
+              </p>
+              <p className="flex items-center gap-2">
+                <Clock3 className="h-4 w-4 text-emerald-600" />
+                {formatTime(selectedSchedule.start_time)} - {formatTime(selectedSchedule.end_time)}
+              </p>
+              <p className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-rose-500" />
+                Room {selectedSchedule.room || "TBA"}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </ProfileLayout>
   );
 }
-
