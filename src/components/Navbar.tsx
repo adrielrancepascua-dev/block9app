@@ -65,8 +65,8 @@ export default function Navbar() {
   return (
     <>
       {/* Mobile Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 block md:hidden border-t border-white/20 bg-white/10 backdrop-blur-md">
-        <div className="flex items-center justify-around gap-1 px-2 py-3">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 block border-t border-white/20 bg-white/10 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] backdrop-blur-md md:hidden">
+        <div className="flex items-center justify-around gap-1 px-2 pt-2">
           {navItems.map((item) => (
             <Link
               key={item.href}
@@ -134,8 +134,6 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* Spacer for mobile to prevent content overlap */}
-      <div className="h-16 md:hidden" />
     </>
   );
 }

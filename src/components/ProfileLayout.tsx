@@ -27,7 +27,7 @@ export default function ProfileLayout({
       />
 
       {/* Main Content Wrapper */}
-      <main className="relative z-10 flex min-h-screen flex-col items-center justify-center p-3 sm:p-8">
+      <main className="relative z-10 flex min-h-screen flex-col items-center justify-center px-3 pt-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:p-8 sm:pb-8">
         
         {/* 
           Glassmorphism Container
