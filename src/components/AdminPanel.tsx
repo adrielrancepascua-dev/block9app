@@ -162,7 +162,6 @@ export default function AdminPanel() {
             
             {/* Date Selection */}
             <div className="sm:col-span-2">
-              <label htmlFor="date" clas1">
               <label htmlFor="date" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                 Date
               </label>
@@ -205,7 +204,8 @@ export default function AdminPanel() {
                 ))}
               </select>
               {errors.startTime && (
-                <p className="mt-1 text-sm text-red-500">{errors.start
+                <p className="mt-1 text-sm text-red-500">{errors.startTime.message}</p>
+              )}
             </div>
           </div>
 
