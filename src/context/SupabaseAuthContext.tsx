@@ -32,8 +32,8 @@ const AuthContext = createContext<AuthContextType>({
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profil
-  const router = useRouter();e | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
 
   const createProfile = async (userId: string, email: string): Promise<Profile | null> => {
