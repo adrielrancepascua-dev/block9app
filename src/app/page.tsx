@@ -33,6 +33,7 @@ export default function Home() {
     Record<string, AttendanceSummary>
   >({});
   const [isFetching, setIsFetching] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -48,6 +49,7 @@ export default function Home() {
 
   const fetchDashboardData = async () => {
     setIsFetching(true);
+    setFetchError(null);
     try {
       // Removing startOfDay filter so schedules don't mysteriously vanish 
       const { data: scheduleData, error: scheduleError } = await supabase
@@ -58,15 +60,19 @@ export default function Home() {
       if (scheduleError) throw scheduleError;
       setSchedules(scheduleData || []);
 
-      const { data: attendanceData, error: attendanceError } = await supabase
-        .from("attendance")
-        .select("schedule_id, status, user_id, profiles(name)")
-        .in(
-          "schedule_id",
-          (scheduleData || []).map((schedule) => schedule.id)
-        );
+      let attendanceData: any[] = [];
+      if ((scheduleData || []).length > 0) {
+        const { data, error: attendanceError } = await supabase
+          .from("attendance")
+          .select("schedule_id, status, user_id, profiles(name)")
+          .in(
+            "schedule_id",
+            (scheduleData || []).map((schedule) => schedule.id)
+          );
 
-      if (attendanceError) throw attendanceError;
+        if (attendanceError) throw attendanceError;
+        attendanceData = data || [];
+      }
 
       const attendanceMap: Record<
         string,
@@ -74,7 +80,7 @@ export default function Home() {
       > = {};
       const attendanceSummaryMap: Record<string, AttendanceSummary> = {};
 
-      attendanceData?.forEach((record: any) => {
+      attendanceData.forEach((record: any) => {
         const status = record.status as "going" | "late" | "absent";
         const displayName =
           record.user_id === user?.id ? "You" : record.profiles?.name || "Guest";
@@ -98,10 +104,29 @@ export default function Home() {
       setAttendanceSummary(attendanceSummaryMap);
     } catch (err: any) {
       console.error("Error fetching dashboard data:", err.message);
+      setFetchError("Could not refresh schedules right now. Retrying automatically...");
     } finally {
       setIsFetching(false);
     }
   };
+
+  useEffect(() => {
+    if (!user) return;
+
+    const handleRefetch = () => {
+      fetchDashboardData();
+    };
+
+    const intervalId = setInterval(handleRefetch, 60000);
+    window.addEventListener("focus", handleRefetch);
+    window.addEventListener("online", handleRefetch);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener("focus", handleRefetch);
+      window.removeEventListener("online", handleRefetch);
+    };
+  }, [user]);
 
   if (loading) {
     return (
@@ -151,6 +176,11 @@ export default function Home() {
         </div>
 
         <div className="space-y-4">
+          {fetchError && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {fetchError}
+            </div>
+          )}
           {isFetching ? (
             <div className="flex py-12 justify-center">
               <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-300 border-t-blue-600 dark:border-white/20 dark:border-t-blue-500"></div>

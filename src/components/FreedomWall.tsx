@@ -42,6 +42,7 @@ export default function FreedomWall() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const getPostColor = (post: Post) => {
     if (post.profiles?.custom_bg_url && post.profiles.custom_bg_url.startsWith('#')) {
@@ -52,8 +53,13 @@ export default function FreedomWall() {
     return PASTEL_COLORS[charCode % PASTEL_COLORS.length];
   };
 
-  const fetchPosts = async () => {
+  const fetchPosts = async (showSpinner = true) => {
     try {
+      if (showSpinner) {
+        setIsLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
       setError(null);
       const { data, error: fetchError } = await supabase
         .from('freedom_wall')
@@ -76,18 +82,37 @@ export default function FreedomWall() {
       setError('Failed to load posts');
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
     if (user) {
       setIsLoading(true);
-      fetchPosts();
+      fetchPosts(true);
       return;
     }
 
     setPosts([]);
     setIsLoading(false);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const refresh = () => {
+      fetchPosts(false);
+    };
+
+    const intervalId = setInterval(refresh, 60000);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('online', refresh);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('online', refresh);
+    };
   }, [user]);
 
   useEffect(() => {
@@ -233,6 +258,9 @@ export default function FreedomWall() {
       {user && (
         <div className="mb-6 rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800 shrink-0 relative z-20 overflow-visible">
           <form onSubmit={handleSubmit} className="p-6">
+            {isRefreshing && (
+              <p className="mb-3 text-xs text-slate-500">Refreshing posts...</p>
+            )}
             <div className="mb-4">
               <label htmlFor="content" className="sr-only">What's on your mind?</label>
               <textarea

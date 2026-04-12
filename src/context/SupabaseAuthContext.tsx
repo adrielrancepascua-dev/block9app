@@ -107,7 +107,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (err) {
       console.error('Unexpected error fetching profile:', err);
-      setProfile(null);
+      // Keep previous profile during transient failures to avoid UI flicker.
     } finally {
       // CRITICAL: Always clear loading state, whether fetch succeeds or fails
       setLoading(false);
@@ -171,8 +171,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               return;
             }
 
-            // Ignore transient null sessions so the app doesn't flicker away.
-            setLoading(false);
+            // Recheck once before clearing state to handle transient null sessions.
+            const { data: { session: latestSession } } = await withTimeout(
+              supabase.auth.getSession(),
+              5000,
+              'Auth session recheck'
+            );
+
+            const resolvedUser = latestSession?.user ?? null;
+            if (!resolvedUser) {
+              setUser(null);
+              setProfile(null);
+              setLoading(false);
+              return;
+            }
+
+            setUser(resolvedUser);
+            await fetchProfile(resolvedUser.id, resolvedUser.email);
             return;
           }
 
