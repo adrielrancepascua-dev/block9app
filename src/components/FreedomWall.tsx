@@ -125,6 +125,7 @@ export default function FreedomWall() {
           content: content.trim(),
           author_id: user.id,
           is_anonymous: isAnonymous,
+          created_at: new Date().toISOString(),
         });
 
       if (insertError) throw insertError;

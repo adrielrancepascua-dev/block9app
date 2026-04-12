@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { supabase } from '@/utils/supabase';
+import { useAuth } from '@/context/SupabaseAuthContext';
 import { toast } from 'sonner';
 
 // --- Validation Schema ---
@@ -35,6 +36,7 @@ type ScheduleFormValues = z.infer<typeof scheduleSchema>;
 // --- Component ---
 export default function AdminPanel() {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { user } = useAuth();
 
   const {
     register,
@@ -60,6 +62,7 @@ export default function AdminPanel() {
           room: data.room,
           start_time: startDateTime,
           end_time: endDateTime,
+          created_by: user?.id,
         });
 
       if (error) {
