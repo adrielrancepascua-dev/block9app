@@ -715,7 +715,7 @@ export default function FreedomWall() {
         <div
           className={`relative overflow-hidden bg-[url('https://www.transparenttextures.com/patterns/cork-board.png')] bg-[#d4a88c] ${
             isMobileBoardExpanded
-              ? 'absolute inset-x-3 top-[12dvh] bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[71] rounded-2xl border-4 border-amber-800/80 shadow-2xl sm:static sm:inset-auto sm:top-auto sm:bottom-auto'
+              ? 'fixed inset-x-0 top-0 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-[71] rounded-none border-y-4 border-amber-800/80 shadow-2xl sm:static sm:inset-auto sm:top-auto sm:bottom-auto'
               : 'mb-4 min-h-[460px] flex-1 rounded-xl border-4 border-amber-800/80 shadow-inner sm:mb-8 sm:min-h-[400px] sm:border-8'
           }`}
         >
@@ -734,7 +734,7 @@ export default function FreedomWall() {
             <button
               type="button"
               onClick={() => setIsMobileBoardExpanded(false)}
-              className="absolute right-3 top-3 z-30 inline-flex items-center gap-1 rounded-md bg-black/45 px-2.5 py-1.5 text-xs font-semibold text-white backdrop-blur-sm hover:bg-black/55 sm:hidden"
+              className="absolute right-3 top-[calc(0.5rem+env(safe-area-inset-top))] z-30 inline-flex items-center gap-1 rounded-md bg-black/45 px-2.5 py-1.5 text-xs font-semibold text-white backdrop-blur-sm hover:bg-black/55 sm:hidden"
               aria-label="Collapse wall"
             >
               <Minimize2 className="h-3.5 w-3.5" />
