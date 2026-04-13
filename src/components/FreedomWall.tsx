@@ -46,8 +46,6 @@ export default function FreedomWall() {
   const [error, setError] = useState<string | null>(null);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isDraggingPin, setIsDraggingPin] = useState(false);
-  const [draftPosition, setDraftPosition] = useState({ x: 50, y: 50 });
   const [clearVoteCount, setClearVoteCount] = useState(0);
   const [hasVotedToClear, setHasVotedToClear] = useState(false);
   const [isVoting, setIsVoting] = useState(false);
@@ -65,6 +63,10 @@ export default function FreedomWall() {
 
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
   const clearProgress = Math.min(100, (clearVoteCount / CLEAR_VOTE_TARGET) * 100);
+  const getAutoPlacement = () => ({
+    x: Math.round(clamp(50 + (Math.random() - 0.5) * 46, 5, 92)),
+    y: Math.round(clamp(50 + (Math.random() - 0.5) * 46, 5, 92)),
+  });
 
   const getPostColor = (post: Post) => {
     if (post.profiles?.custom_bg_url && post.profiles.custom_bg_url.startsWith('#')) {
@@ -307,8 +309,7 @@ export default function FreedomWall() {
     const currentIsAnonymous = isAnonymous;
     const createdAt = new Date().toISOString();
     const optimisticId = `temp-${Date.now()}`;
-    const placedX = Math.round(clamp(draftPosition.x, 5, 92));
-    const placedY = Math.round(clamp(draftPosition.y, 5, 92));
+    const { x: placedX, y: placedY } = getAutoPlacement();
 
     try {
       const optimisticPost: Post = {
@@ -356,38 +357,11 @@ export default function FreedomWall() {
     }
   };
 
-  const updateDraftPositionFromPoint = (clientX: number, clientY: number) => {
-    const board = boardRef.current;
-    if (!board) return;
-
-    const rect = board.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-
-    const x = ((clientX - rect.left) / rect.width) * 100;
-    const y = ((clientY - rect.top) / rect.height) * 100;
-
-    setDraftPosition({
-      x: clamp(x, 5, 92),
-      y: clamp(y, 5, 92),
-    });
-  };
-
-  const handleBoardPlacement = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (didPanBoardRef.current) {
-      didPanBoardRef.current = false;
-      return;
-    }
-
-    const target = e.target as HTMLElement;
-    if (target.closest('[data-note-card="true"]') || target.closest('[data-draft-pin="true"]')) return;
-    updateDraftPositionFromPoint(e.clientX, e.clientY);
-  };
-
   const handleBoardViewportPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isMobileBoardExpanded) return;
 
     const target = e.target as HTMLElement;
-    if (target.closest('[data-note-card="true"]') || target.closest('[data-draft-pin="true"]')) return;
+    if (target.closest('[data-note-card="true"]')) return;
 
     const viewport = boardViewportRef.current;
     if (!viewport) return;
@@ -427,28 +401,6 @@ export default function FreedomWall() {
     window.setTimeout(() => {
       didPanBoardRef.current = false;
     }, 0);
-  };
-
-  const handleDraftPinPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDraggingPin(true);
-    updateDraftPositionFromPoint(e.clientX, e.clientY);
-
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      updateDraftPositionFromPoint(moveEvent.clientX, moveEvent.clientY);
-    };
-
-    const handlePointerUp = () => {
-      setIsDraggingPin(false);
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-      window.removeEventListener('pointercancel', handlePointerUp);
-    };
-
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('pointercancel', handlePointerUp);
   };
 
   const handleDelete = async (postId: string) => {
@@ -661,23 +613,7 @@ export default function FreedomWall() {
               ? 'h-[155%] min-h-[760px] w-[165%] min-w-[760px]'
               : 'h-full w-full'
           }`}
-          onClick={handleBoardPlacement}
         >
-          {user && (
-            <button
-              type="button"
-              data-draft-pin="true"
-              onPointerDown={handleDraftPinPointerDown}
-              aria-label="Drag to place the next note"
-              title="Drag to place the next note"
-              className={`absolute z-20 h-5 w-5 -translate-x-1/2 -translate-y-1/2 touch-none rounded-full border-2 border-white bg-blue-500 shadow-lg ring-4 ring-blue-500/20 transition ${isDraggingPin ? 'cursor-grabbing scale-110' : 'cursor-grab'}`}
-              style={{
-                top: `${draftPosition.y}%`,
-                left: `${draftPosition.x}%`,
-              }}
-            />
-          )}
-
           {posts.map((post) => {
             let rotateDeg = 0;
             if (post.id) rotateDeg = (post.id.charCodeAt(0) % 10) - 5;
@@ -836,7 +772,7 @@ export default function FreedomWall() {
             </div>
 
             <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-              Drag the blue pin on the board to place your next note.
+              New notes are auto-placed. Drag any note to reposition it.
             </p>
           </form>
         </div>
