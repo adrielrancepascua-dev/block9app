@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/SupabaseAuthContext";
-import { Home, MessageSquare, Settings, ShieldAlert } from "lucide-react";
+import { Home, MessageCircle, MessageSquare, Settings, ShieldAlert } from "lucide-react";
 
 interface NavItem {
   label: string;
@@ -33,6 +33,11 @@ export default function Navbar() {
       label: "Freedom Wall",
       href: "/freedom-wall",
       icon: <MessageSquare className="h-5 w-5" />,
+    },
+    {
+      label: "Chat",
+      href: "/chat",
+      icon: <MessageCircle className="h-5 w-5" />,
     },
     {
       label: "Settings",
