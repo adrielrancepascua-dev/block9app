@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/context/SupabaseAuthContext';
 import { supabase } from '@/utils/supabase';
 import { motion, AnimatePresence, type PanInfo } from 'framer-motion';
-import { ArrowLeft, Maximize2, Minimize2, Trash2, X } from 'lucide-react';
+import { Maximize2, Minimize2, Trash2, X } from 'lucide-react';
 
 interface ProfileData {
   name: string;
@@ -707,67 +707,62 @@ export default function FreedomWall() {
         </div>
       )}
 
-      <div
-        className={`relative overflow-hidden bg-[url('https://www.transparenttextures.com/patterns/cork-board.png')] bg-[#d4a88c] ${
-          isMobileBoardExpanded
-            ? 'fixed inset-0 z-[70] h-[100dvh] rounded-none border-0 shadow-none'
-            : 'mb-4 min-h-[460px] flex-1 rounded-xl border-4 border-amber-800/80 shadow-inner sm:mb-8 sm:min-h-[400px] sm:border-8'
-        }`}
-      >
-        {!isMobileBoardExpanded && (
-          <button
-            type="button"
-            onClick={() => setIsMobileBoardExpanded(true)}
-            className="absolute right-3 top-3 z-30 inline-flex items-center gap-1 rounded-md bg-black/45 px-2.5 py-1.5 text-xs font-semibold text-white backdrop-blur-sm sm:hidden"
-          >
-            <Maximize2 className="h-3.5 w-3.5" />
-            Expand
-          </button>
-        )}
-
+      <div className={isMobileBoardExpanded ? 'fixed inset-0 z-[70] sm:contents' : ''}>
         {isMobileBoardExpanded && (
-          <div className="absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-black/45 px-3 py-2 backdrop-blur-sm sm:hidden">
-            <button
-              type="button"
-              onClick={() => setIsMobileBoardExpanded(false)}
-              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-semibold text-white hover:bg-white/10"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </button>
-            <span className="text-xs font-semibold uppercase tracking-wide text-white/90">Freedom Wall</span>
-            <button
-              type="button"
-              onClick={() => setIsMobileBoardExpanded(false)}
-              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-semibold text-white hover:bg-white/10"
-              aria-label="Collapse wall"
-            >
-              <Minimize2 className="h-4 w-4" />
-            </button>
-          </div>
+          <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-sm sm:hidden" />
         )}
 
         <div
-          ref={boardViewportRef}
-          className={`absolute inset-0 overflow-auto ${
+          className={`relative overflow-hidden bg-[url('https://www.transparenttextures.com/patterns/cork-board.png')] bg-[#d4a88c] ${
             isMobileBoardExpanded
-              ? `${isPanningBoard ? 'cursor-grabbing' : 'cursor-grab'} touch-none pt-12`
-              : ''
+              ? 'absolute inset-x-3 top-[12dvh] bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[71] rounded-2xl border-4 border-amber-800/80 shadow-2xl sm:static sm:inset-auto sm:top-auto sm:bottom-auto'
+              : 'mb-4 min-h-[460px] flex-1 rounded-xl border-4 border-amber-800/80 shadow-inner sm:mb-8 sm:min-h-[400px] sm:border-8'
           }`}
-          onPointerDown={handleBoardViewportPointerDown}
-          onPointerMove={handleBoardViewportPointerMove}
-          onPointerUp={handleBoardViewportPointerUp}
-          onPointerCancel={handleBoardViewportPointerUp}
         >
+          {!isMobileBoardExpanded && (
+            <button
+              type="button"
+              onClick={() => setIsMobileBoardExpanded(true)}
+              className="absolute right-3 top-3 z-30 inline-flex items-center gap-1 rounded-md bg-black/45 px-2.5 py-1.5 text-xs font-semibold text-white backdrop-blur-sm sm:hidden"
+            >
+              <Maximize2 className="h-3.5 w-3.5" />
+              Expand
+            </button>
+          )}
+
+          {isMobileBoardExpanded && (
+            <button
+              type="button"
+              onClick={() => setIsMobileBoardExpanded(false)}
+              className="absolute right-3 top-3 z-30 inline-flex items-center gap-1 rounded-md bg-black/45 px-2.5 py-1.5 text-xs font-semibold text-white backdrop-blur-sm hover:bg-black/55 sm:hidden"
+              aria-label="Collapse wall"
+            >
+              <Minimize2 className="h-3.5 w-3.5" />
+              Collapse
+            </button>
+          )}
+
           <div
-            ref={boardRef}
-            className={`relative ${
+            ref={boardViewportRef}
+            className={`absolute inset-0 overflow-auto ${
               isMobileBoardExpanded
-                ? 'h-[155%] min-h-[760px] w-[165%] min-w-[760px]'
-                : 'h-full w-full'
+                ? `${isPanningBoard ? 'cursor-grabbing' : 'cursor-grab'} touch-none`
+                : ''
             }`}
-            onClick={handleBoardPlacement}
+            onPointerDown={handleBoardViewportPointerDown}
+            onPointerMove={handleBoardViewportPointerMove}
+            onPointerUp={handleBoardViewportPointerUp}
+            onPointerCancel={handleBoardViewportPointerUp}
           >
+            <div
+              ref={boardRef}
+              className={`relative ${
+                isMobileBoardExpanded
+                  ? 'h-[155%] min-h-[760px] w-[165%] min-w-[760px]'
+                  : 'h-full w-full'
+              }`}
+              onClick={handleBoardPlacement}
+            >
             {user && (
               <button
                 type="button"
@@ -839,13 +834,14 @@ export default function FreedomWall() {
                 </div>
               </div>
             )}
+            </div>
           </div>
         </div>
       </div>
 
       <AnimatePresence>
         {selectedPost && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-900/60 p-0 backdrop-blur-sm sm:items-center sm:p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -855,21 +851,23 @@ export default function FreedomWall() {
             />
 
             <motion.div
-              layoutId={`post-${selectedPost.id}`}
-              className="relative w-full max-w-md p-8 shadow-2xl z-10 flex flex-col max-h-[80vh] overflow-y-auto rounded-sm"
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 16 }}
+              transition={{ duration: 0.18 }}
+              className="relative z-10 flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-2xl shadow-2xl sm:max-h-[80vh] sm:max-w-md sm:rounded-sm"
               style={{
                 backgroundColor: getPostColor(selectedPost),
-                minHeight: '300px',
               }}
             >
-              <div className="absolute top-4 right-4 flex gap-2">
+              <div className="sticky top-0 z-10 flex justify-end gap-2 bg-black/10 px-3 py-3 backdrop-blur-sm">
                 {profile?.role === 'admin' && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDelete(selectedPost.id);
                     }}
-                    className="p-2 text-black/60 hover:text-red-600 hover:bg-black/10 rounded-full transition-colors focus:outline-none"
+                    className="rounded-full p-2 text-black/60 transition-colors hover:bg-black/10 hover:text-red-600 focus:outline-none"
                     title="Delete Post"
                   >
                     <Trash2 size={20} />
@@ -877,31 +875,31 @@ export default function FreedomWall() {
                 )}
                 <button
                   onClick={() => setSelectedPost(null)}
-                  className="p-2 text-black/60 hover:text-black hover:bg-black/10 rounded-full transition-colors focus:outline-none"
+                  className="rounded-full p-2 text-black/70 transition-colors hover:bg-black/10 hover:text-black focus:outline-none"
                   title="Close"
                 >
                   <X size={20} />
                 </button>
               </div>
 
-              <div className="flex-1 mt-6">
-                <p className="text-black/90 text-lg sm:text-xl font-medium font-mono whitespace-pre-wrap leading-relaxed">
+              <div className="flex-1 overflow-y-auto px-5 pb-5 pt-2 sm:px-8 sm:pb-8 sm:pt-4">
+                <p className="text-lg font-medium leading-relaxed text-black/90 whitespace-pre-wrap sm:text-xl">
                   {selectedPost.content}
                 </p>
-              </div>
 
-              <div className="mt-8 border-t border-black/20 pt-4 flex justify-between items-center text-sm text-black/70">
-                <span className="font-bold flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-black/20" />
-                  {selectedPost.is_anonymous ? 'Anonymous' : selectedPost.author_name}
-                </span>
-                <span className="opacity-80">
-                  {new Date(selectedPost.created_at).toLocaleDateString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })}
-                </span>
+                <div className="mt-8 flex items-center justify-between border-t border-black/20 pt-4 text-sm text-black/70">
+                  <span className="flex items-center gap-2 font-bold">
+                    <span className="h-2 w-2 rounded-full bg-black/20" />
+                    {selectedPost.is_anonymous ? 'Anonymous' : selectedPost.author_name}
+                  </span>
+                  <span className="opacity-80">
+                    {new Date(selectedPost.created_at).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </div>
               </div>
             </motion.div>
           </div>
