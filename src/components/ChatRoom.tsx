@@ -25,6 +25,7 @@ interface ChatMessage {
   content: string;
   createdAt: string;
   authorName: string;
+  authorAvatarUrl: string | null;
   replyToId: string | null;
   editedAt: string | null;
   optimistic?: boolean;
@@ -101,6 +102,18 @@ const extractProfileName = (profiles: unknown): string | null => {
   return candidate?.name?.trim() || null;
 };
 
+const extractProfileAvatar = (profiles: unknown): string | null => {
+  if (!profiles) return null;
+
+  if (Array.isArray(profiles)) {
+    const candidate = profiles[0] as { avatar_url?: string | null } | undefined;
+    return candidate?.avatar_url || null;
+  }
+
+  const candidate = profiles as { avatar_url?: string | null };
+  return candidate?.avatar_url || null;
+};
+
 const getInitials = (name: string) => {
   const trimmed = name.trim();
   if (!trimmed) return "S";
@@ -153,6 +166,7 @@ export default function ChatRoom() {
   const draftRef = useRef<HTMLTextAreaElement | null>(null);
   const isAtBottomRef = useRef(true);
   const profileNameCacheRef = useRef<Record<string, string>>({});
+  const profileAvatarCacheRef = useRef<Record<string, string>>({});
   const longPressTimerRef = useRef<number | null>(null);
 
   const myDisplayName = useMemo(() => {
@@ -242,11 +256,18 @@ export default function ChatRoom() {
     optimistic = false
   ): ChatMessage => {
     const fetchedName = extractProfileName(row.profiles);
+    const fetchedAvatarUrl = extractProfileAvatar(row.profiles);
     const cachedName = profileNameCacheRef.current[row.author_id];
+    const cachedAvatarUrl = profileAvatarCacheRef.current[row.author_id];
     const computedName = fetchedName || cachedName || fallbackName || "Student";
+    const computedAvatarUrl = fetchedAvatarUrl || cachedAvatarUrl || null;
 
     if (computedName && computedName !== "Student") {
       profileNameCacheRef.current[row.author_id] = computedName;
+    }
+
+    if (computedAvatarUrl) {
+      profileAvatarCacheRef.current[row.author_id] = computedAvatarUrl;
     }
 
     return {
@@ -255,6 +276,7 @@ export default function ChatRoom() {
       content: row.content,
       createdAt: row.created_at,
       authorName: computedName,
+      authorAvatarUrl: computedAvatarUrl,
       replyToId: row.reply_to_id ?? null,
       editedAt: row.edited_at ?? null,
       optimistic,
@@ -275,7 +297,7 @@ export default function ChatRoom() {
 
       const { data, error: fetchError } = await supabase
         .from("chat_messages")
-        .select("id, author_id, content, created_at, reply_to_id, edited_at, profiles(name)")
+        .select("id, author_id, content, created_at, reply_to_id, edited_at, profiles(name, avatar_url)")
         .order("created_at", { ascending: true })
         .limit(MESSAGE_LIMIT);
 
@@ -442,11 +464,15 @@ export default function ChatRoom() {
             incoming.author_id === user.id
               ? myDisplayName
               : profileNameCacheRef.current[incoming.author_id] || "Student";
+          let authorAvatarUrl =
+            incoming.author_id === user.id
+              ? profile?.avatar_url || null
+              : profileAvatarCacheRef.current[incoming.author_id] || null;
 
           if (!profileNameCacheRef.current[incoming.author_id] && incoming.author_id !== user.id) {
             const { data: profileData } = await supabase
               .from("profiles")
-              .select("name")
+              .select("name, avatar_url")
               .eq("user_id", incoming.author_id)
               .single();
 
@@ -454,6 +480,11 @@ export default function ChatRoom() {
             if (resolved) {
               authorName = resolved;
               profileNameCacheRef.current[incoming.author_id] = resolved;
+            }
+
+            if (profileData?.avatar_url) {
+              authorAvatarUrl = profileData.avatar_url;
+              profileAvatarCacheRef.current[incoming.author_id] = profileData.avatar_url;
             }
           }
 
@@ -463,6 +494,7 @@ export default function ChatRoom() {
             content: incoming.content,
             createdAt: incoming.created_at,
             authorName,
+            authorAvatarUrl,
             replyToId: incoming.reply_to_id ?? null,
             editedAt: incoming.edited_at ?? null,
           };
@@ -540,7 +572,7 @@ export default function ChatRoom() {
     return () => {
       messageChannel.unsubscribe();
     };
-  }, [user?.id, myDisplayName]);
+  }, [user?.id, myDisplayName, profile?.avatar_url]);
 
   useEffect(() => {
     if (!user || !isRoomSettingsAvailable) return;
@@ -771,6 +803,7 @@ export default function ChatRoom() {
       content: trimmed,
       createdAt: optimisticCreatedAt,
       authorName: myDisplayName,
+      authorAvatarUrl: profile?.avatar_url || null,
       replyToId: nextReplyToId,
       editedAt: null,
       optimistic: true,
@@ -966,8 +999,16 @@ export default function ChatRoom() {
 
                         <div className={`flex items-end gap-2 ${isMine ? "justify-end" : "justify-start"}`}>
                           {!isMine && (
-                            <div className="mb-1 flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-300 bg-slate-100 text-[11px] font-bold text-slate-700 dark:border-white/15 dark:bg-white/10 dark:text-slate-200">
-                              {message.authorName ? getInitials(message.authorName) : "S"}
+                            <div className="mb-1 flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-300 bg-slate-100 text-[9px] font-bold text-slate-700 dark:border-white/15 dark:bg-white/10 dark:text-slate-200">
+                              {message.authorAvatarUrl ? (
+                                <img
+                                  src={message.authorAvatarUrl}
+                                  alt={message.authorName}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                message.authorName ? getInitials(message.authorName) : "S"
+                              )}
                             </div>
                           )}
 
@@ -982,6 +1023,12 @@ export default function ChatRoom() {
                             onDragEnd={(event, info) => handleSwipeToReply(message, event, info)}
                             className={`max-w-[90%] sm:max-w-[74%] ${isMine ? "order-1" : ""}`}
                           >
+                            {!isMine && (
+                              <p className="mb-1 ml-1 text-[11px] font-semibold text-slate-500 dark:text-slate-300">
+                                {message.authorName}
+                              </p>
+                            )}
+
                             <div
                               onContextMenu={(event) => {
                                 if (!canDelete && !canEdit) return;
@@ -1011,12 +1058,6 @@ export default function ChatRoom() {
                                   </p>
                                   <p className="truncate">{shortPreview(repliedMessage.content)}</p>
                                 </div>
-                              )}
-
-                              {!isMine && (
-                                <p className="mb-1 text-[11px] font-semibold text-slate-500 dark:text-slate-300">
-                                  {message.authorName}
-                                </p>
                               )}
 
                               <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
