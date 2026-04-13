@@ -88,6 +88,7 @@ public class TodayScheduleWidgetProvider extends AppWidgetProvider {
 
         PendingIntent openAppIntent = buildOpenAppIntent(context, widgetId);
         views.setOnClickPendingIntent(R.id.widget_root, openAppIntent);
+        views.setOnClickPendingIntent(R.id.widget_open_button, openAppIntent);
         views.setOnClickPendingIntent(R.id.widget_refresh_button, buildRefreshIntent(context, widgetId));
 
         return views;
@@ -182,23 +183,31 @@ public class TodayScheduleWidgetProvider extends AppWidgetProvider {
 
             String startLabel = first.optString("start_label", "TBA");
             String subject = trimWithEllipsis(first.optString("subject", "Class"), 24);
-            String room = trimWithEllipsis(first.optString("room", ""), 20);
+            String room = trimWithEllipsis(first.optString("room", ""), 22);
 
             StringBuilder summary = new StringBuilder();
-            summary.append("Next ").append(startLabel).append(" • ").append(subject);
+            summary.append("Next ").append(startLabel);
+            summary.append("\n").append(subject);
 
             if (!TextUtils.isEmpty(room)) {
-                summary.append("\n").append(room);
+                summary.append("\nRoom: ").append(room);
             }
 
             int remaining = total - 1;
             if (remaining > 0) {
-                summary.append("\n+").append(remaining).append(" more class");
-                if (remaining > 1) {
-                    summary.append("es");
+                JSONObject second = schedules.optJSONObject(1);
+                if (second != null) {
+                    String secondStart = second.optString("start_label", "TBA");
+                    String secondSubject = trimWithEllipsis(second.optString("subject", "Class"), 16);
+                    summary.append("\nThen ").append(secondStart).append(" ").append(secondSubject);
+                    if (remaining > 1) {
+                        summary.append(" +").append(remaining - 1);
+                    }
+                } else {
+                    summary.append("\n+").append(remaining).append(" more today");
                 }
             } else {
-                summary.append("\nOnly class today");
+                summary.append("\nNo more after this");
             }
 
             return new WidgetPayload(
