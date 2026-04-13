@@ -5,12 +5,16 @@ import { useAuth } from "@/context/SupabaseAuthContext";
 import { supabase } from "@/utils/supabase";
 import { motion, type PanInfo } from "framer-motion";
 import {
+  ImageIcon,
   MessageCircleMore,
   Pencil,
   RefreshCw,
   Reply,
+  Save,
   SendHorizonal,
+  SlidersHorizontal,
   Trash2,
+  Users,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -25,6 +29,22 @@ interface ChatMessage {
   editedAt: string | null;
   optimistic?: boolean;
 }
+
+interface ChatRoomMeta {
+  id: string;
+  name: string;
+  subtitle: string | null;
+  avatarUrl: string | null;
+  updatedAt: string | null;
+}
+
+const DEFAULT_ROOM_META: ChatRoomMeta = {
+  id: "global",
+  name: "Community Chat",
+  subtitle: null,
+  avatarUrl: null,
+  updatedAt: null,
+};
 
 const MESSAGE_LIMIT = 200;
 const MAX_MESSAGE_LENGTH = 500;
@@ -95,6 +115,14 @@ const shortPreview = (text: string, length = 72) => {
   return `${normalized.slice(0, length)}...`;
 };
 
+const mapRoomRow = (row: any): ChatRoomMeta => ({
+  id: row?.id || "global",
+  name: (row?.name || DEFAULT_ROOM_META.name).trim() || DEFAULT_ROOM_META.name,
+  subtitle: row?.subtitle?.trim() || null,
+  avatarUrl: row?.avatar_url || null,
+  updatedAt: row?.updated_at || null,
+});
+
 export default function ChatRoom() {
   const { user, profile } = useAuth();
 
@@ -110,6 +138,16 @@ export default function ChatRoom() {
   const [replyToMessageId, setReplyToMessageId] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<ChatMessage | null>(null);
+
+  const [roomMeta, setRoomMeta] = useState<ChatRoomMeta>(DEFAULT_ROOM_META);
+  const [isRoomSettingsAvailable, setIsRoomSettingsAvailable] = useState(true);
+  const [isRoomSettingsOpen, setIsRoomSettingsOpen] = useState(false);
+  const [roomNameDraft, setRoomNameDraft] = useState("");
+  const [roomSubtitleDraft, setRoomSubtitleDraft] = useState("");
+  const [roomAvatarUrlDraft, setRoomAvatarUrlDraft] = useState("");
+  const [roomAvatarFile, setRoomAvatarFile] = useState<File | null>(null);
+  const [roomAvatarPreviewUrl, setRoomAvatarPreviewUrl] = useState<string | null>(null);
+  const [isSavingRoomSettings, setIsSavingRoomSettings] = useState(false);
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const draftRef = useRef<HTMLTextAreaElement | null>(null);
@@ -133,6 +171,13 @@ export default function ChatRoom() {
     return map;
   }, [messages]);
 
+  const roomSubtitleText =
+    roomMeta.subtitle?.trim() ||
+    `${participantCount} participant${participantCount === 1 ? "" : "s"}`;
+
+  const roomAvatarForDisplay = roomMeta.avatarUrl || null;
+  const roomAvatarForEditor = roomAvatarPreviewUrl || roomAvatarUrlDraft.trim() || roomMeta.avatarUrl || "";
+
   const replyToMessage = replyToMessageId ? messageMap.get(replyToMessageId) || null : null;
   const editingMessage = editingMessageId ? messageMap.get(editingMessageId) || null : null;
 
@@ -146,11 +191,24 @@ export default function ChatRoom() {
     longPressTimerRef.current = null;
   };
 
+  const releaseRoomAvatarPreview = (url: string | null) => {
+    if (url) {
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const clearRoomAvatarSelection = () => {
+    setRoomAvatarFile(null);
+    releaseRoomAvatarPreview(roomAvatarPreviewUrl);
+    setRoomAvatarPreviewUrl(null);
+  };
+
   useEffect(() => {
     return () => {
       clearLongPressTimer();
+      releaseRoomAvatarPreview(roomAvatarPreviewUrl);
     };
-  }, []);
+  }, [roomAvatarPreviewUrl]);
 
   const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
     const list = listRef.current;
@@ -249,13 +307,104 @@ export default function ChatRoom() {
     }
   };
 
+  const fetchRoomMeta = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error: roomError } = await supabase
+        .from("chat_rooms")
+        .select("id, name, subtitle, avatar_url, updated_at")
+        .eq("id", "global")
+        .maybeSingle();
+
+      if (roomError?.code === "42P01") {
+        setIsRoomSettingsAvailable(false);
+        setRoomMeta(DEFAULT_ROOM_META);
+        return;
+      }
+
+      if (roomError) throw roomError;
+
+      if (data) {
+        setRoomMeta(mapRoomRow(data));
+        setIsRoomSettingsAvailable(true);
+        return;
+      }
+
+      const fallbackRow = {
+        id: "global",
+        name: DEFAULT_ROOM_META.name,
+        subtitle: DEFAULT_ROOM_META.subtitle,
+        avatar_url: DEFAULT_ROOM_META.avatarUrl,
+      };
+
+      const { data: inserted, error: insertError } = await supabase
+        .from("chat_rooms")
+        .upsert(
+          {
+            ...fallbackRow,
+            updated_at: new Date().toISOString(),
+            updated_by: user.id,
+          },
+          { onConflict: "id" }
+        )
+        .select("id, name, subtitle, avatar_url, updated_at")
+        .single();
+
+      if (insertError?.code === "42P01") {
+        setIsRoomSettingsAvailable(false);
+        setRoomMeta(DEFAULT_ROOM_META);
+        return;
+      }
+
+      if (insertError) throw insertError;
+
+      setRoomMeta(mapRoomRow(inserted || fallbackRow));
+      setIsRoomSettingsAvailable(true);
+    } catch (err: any) {
+      console.error("Error loading chat room settings:", err?.message || err);
+    }
+  };
+
+  const uploadRoomAvatarFile = async (file: File) => {
+    if (!user) throw new Error("User not authenticated");
+
+    const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const safeExtension = extension.replace(/[^a-z0-9]/g, "") || "jpg";
+    const randomPart = Math.random().toString(36).slice(2, 9);
+    const path = `${user.id}/rooms/${Date.now()}-${randomPart}.${safeExtension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("chat-media")
+      .upload(path, file, {
+        upsert: false,
+        cacheControl: "3600",
+        contentType: file.type || undefined,
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage.from("chat-media").getPublicUrl(path);
+    return data.publicUrl;
+  };
+
+  useEffect(() => {
+    if (!user) {
+      setRoomMeta(DEFAULT_ROOM_META);
+      return;
+    }
+
+    void fetchRoomMeta();
+  }, [user?.id]);
+
   useEffect(() => {
     if (!user) return;
 
-    fetchMessages(true);
+    void fetchMessages(true);
 
     const refresh = () => {
-      fetchMessages(false);
+      void fetchMessages(false);
+      void fetchRoomMeta();
     };
 
     const intervalId = window.setInterval(refresh, 45000);
@@ -272,7 +421,7 @@ export default function ChatRoom() {
   useEffect(() => {
     if (!user) return;
 
-    const channel = supabase
+    const messageChannel = supabase
       .channel("chatroom_global_changes")
       .on(
         "postgres_changes",
@@ -389,9 +538,118 @@ export default function ChatRoom() {
       .subscribe();
 
     return () => {
-      channel.unsubscribe();
+      messageChannel.unsubscribe();
     };
   }, [user?.id, myDisplayName]);
+
+  useEffect(() => {
+    if (!user || !isRoomSettingsAvailable) return;
+
+    const roomChannel = supabase
+      .channel("chatroom_meta_changes")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "chat_rooms", filter: "id=eq.global" },
+        (payload: any) => {
+          setRoomMeta(mapRoomRow(payload.new));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "chat_rooms", filter: "id=eq.global" },
+        (payload: any) => {
+          setRoomMeta(mapRoomRow(payload.new));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      roomChannel.unsubscribe();
+    };
+  }, [user?.id, isRoomSettingsAvailable]);
+
+  const openRoomSettings = () => {
+    setRoomNameDraft(roomMeta.name || DEFAULT_ROOM_META.name);
+    setRoomSubtitleDraft(roomMeta.subtitle || "");
+    setRoomAvatarUrlDraft(roomMeta.avatarUrl || "");
+    clearRoomAvatarSelection();
+    setIsRoomSettingsOpen(true);
+  };
+
+  const handleRoomAvatarFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image file.");
+      return;
+    }
+
+    clearRoomAvatarSelection();
+    setRoomAvatarFile(file);
+    setRoomAvatarPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const handleSaveRoomSettings = async () => {
+    if (!user) {
+      toast.error("User not authenticated.");
+      return;
+    }
+
+    if (!isRoomSettingsAvailable) {
+      toast.error("Run the chat room settings migration in Supabase first.");
+      return;
+    }
+
+    const nextRoomName = roomNameDraft.trim() || DEFAULT_ROOM_META.name;
+    const nextRoomSubtitle = roomSubtitleDraft.trim() || null;
+    let nextAvatarUrl = roomAvatarUrlDraft.trim() || null;
+
+    setIsSavingRoomSettings(true);
+
+    try {
+      if (roomAvatarFile) {
+        nextAvatarUrl = await uploadRoomAvatarFile(roomAvatarFile);
+      }
+
+      const payload = {
+        id: "global",
+        name: nextRoomName,
+        subtitle: nextRoomSubtitle,
+        avatar_url: nextAvatarUrl,
+        updated_at: new Date().toISOString(),
+        updated_by: user.id,
+      };
+
+      const { data, error: saveError } = await supabase
+        .from("chat_rooms")
+        .upsert(payload, { onConflict: "id" })
+        .select("id, name, subtitle, avatar_url, updated_at")
+        .single();
+
+      if (saveError?.code === "42P01") {
+        setIsRoomSettingsAvailable(false);
+        toast.error("Run migration 20260415_chat_room_settings.sql in Supabase.");
+        return;
+      }
+
+      if (saveError) throw saveError;
+
+      setRoomMeta(mapRoomRow(data || payload));
+      clearRoomAvatarSelection();
+      setIsRoomSettingsOpen(false);
+      toast.success("Chat settings updated.");
+    } catch (err: any) {
+      console.error("Error saving chat room settings:", err?.message || err);
+      if (/bucket|storage|not found/i.test(err?.message || "")) {
+        toast.error("Chat media storage is not configured yet. Run the latest migration.");
+      } else {
+        toast.error("Could not update chat settings right now.");
+      }
+    } finally {
+      setIsSavingRoomSettings(false);
+    }
+  };
 
   const setReplyTarget = (messageId: string | null) => {
     setReplyToMessageId(messageId);
@@ -430,13 +688,17 @@ export default function ChatRoom() {
     clearLongPressTimer();
   };
 
-  const handleSwipeToReply = (message: ChatMessage, _event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+  const handleSwipeToReply = (
+    message: ChatMessage,
+    _event: MouseEvent | TouchEvent | PointerEvent,
+    info: PanInfo
+  ) => {
     if (info.offset.x < REPLY_SWIPE_THRESHOLD) return;
     setReplyTarget(message.id);
   };
 
   const sendMessage = async () => {
-    if (!user || isSending) return;
+    if (!user || isSending || !isChatAvailable) return;
 
     const trimmed = draft.trim();
     if (!trimmed) return;
@@ -582,6 +844,15 @@ export default function ChatRoom() {
     setActionMessage(null);
     setMessages((prev) => prev.filter((m) => m.id !== message.id));
 
+    if (editingMessageId === message.id) {
+      setEditingMessageId(null);
+      setDraft("");
+    }
+
+    if (replyToMessageId === message.id) {
+      setReplyToMessageId(null);
+    }
+
     try {
       const { error: deleteError } = await supabase
         .from("chat_messages")
@@ -600,28 +871,49 @@ export default function ChatRoom() {
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
-      <section className="relative flex h-[calc(100dvh-13.4rem)] min-h-[27rem] max-h-[50rem] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white/85 shadow-xl backdrop-blur-md dark:border-white/15 dark:bg-slate-900/75 sm:h-[calc(100dvh-12.5rem)] sm:rounded-2xl">
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+      <section className="relative flex h-[calc(100dvh-13rem)] min-h-[30rem] max-h-[52rem] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white/90 shadow-xl backdrop-blur-md dark:border-white/15 dark:bg-slate-900/78 sm:h-[calc(100dvh-12rem)] sm:rounded-2xl">
         <header className="flex items-center justify-between border-b border-slate-200/80 px-4 py-3 dark:border-white/10 sm:px-5">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white sm:text-lg">Global Chatroom</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-300">
-              Everyone in Block9 can talk here in real-time.
-            </p>
-            <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-              Swipe right to reply. Long press your message for options.
-            </p>
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-300 bg-slate-100 text-sm font-bold text-slate-700 dark:border-white/20 dark:bg-white/10 dark:text-slate-200">
+              {roomAvatarForDisplay ? (
+                <img src={roomAvatarForDisplay} alt="Chat avatar" className="h-full w-full object-cover" />
+              ) : (
+                getInitials(roomMeta.name)
+              )}
+            </div>
+
+            <div className="min-w-0">
+              <h2 className="truncate text-base font-bold text-slate-900 dark:text-white sm:text-lg">
+                {roomMeta.name}
+              </h2>
+              <p className="truncate text-xs text-slate-500 dark:text-slate-300">{roomSubtitleText}</p>
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => fetchMessages(false)}
-            disabled={isLoading || isRefreshing || !isChatAvailable}
-            className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/20 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                void fetchMessages(false);
+                void fetchRoomMeta();
+              }}
+              disabled={isLoading || isRefreshing || !isChatAvailable}
+              className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/20 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={openRoomSettings}
+              className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/20 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Settings</span>
+            </button>
+          </div>
         </header>
 
         {!isChatAvailable ? (
@@ -674,8 +966,8 @@ export default function ChatRoom() {
 
                         <div className={`flex items-end gap-2 ${isMine ? "justify-end" : "justify-start"}`}>
                           {!isMine && (
-                            <div className="mb-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-slate-100 text-[11px] font-bold text-slate-700 dark:border-white/15 dark:bg-white/10 dark:text-slate-200">
-                              {getInitials(message.authorName)}
+                            <div className="mb-1 flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-300 bg-slate-100 text-[11px] font-bold text-slate-700 dark:border-white/15 dark:bg-white/10 dark:text-slate-200">
+                              {message.authorName ? getInitials(message.authorName) : "S"}
                             </div>
                           )}
 
@@ -738,10 +1030,6 @@ export default function ChatRoom() {
                               >
                                 <span>{formatMessageTime(message.createdAt)}</span>
                                 {message.editedAt && <span>Edited</span>}
-                                <span className="inline-flex items-center gap-1 opacity-80">
-                                  <Reply className="h-3 w-3" />
-                                  Reply
-                                </span>
                               </div>
                             </div>
                           </motion.div>
@@ -838,9 +1126,7 @@ export default function ChatRoom() {
 
               <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                 <span>Press Enter to send, Shift+Enter for a new line.</span>
-                <span>
-                  {draft.length}/{MAX_MESSAGE_LENGTH}
-                </span>
+                <span>{draft.length}/{MAX_MESSAGE_LENGTH}</span>
               </div>
             </div>
           </>
@@ -849,28 +1135,44 @@ export default function ChatRoom() {
 
       <aside className="hidden flex-col gap-3 lg:flex">
         <div className="rounded-xl border border-white/20 bg-white/20 p-4 backdrop-blur-md">
-          <div className="flex items-center gap-2 text-slate-900 dark:text-white">
+          <div className="mb-3 flex items-center gap-2 text-slate-900 dark:text-white">
             <MessageCircleMore className="h-4 w-4" />
-            <h3 className="text-sm font-bold">Room Snapshot</h3>
+            <h3 className="text-sm font-bold">Conversation Details</h3>
           </div>
+
+          <div className="flex items-center gap-3 rounded-lg border border-white/20 bg-white/30 p-3 dark:bg-white/5">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/40 bg-blue-600/80 text-sm font-bold text-white">
+              {roomAvatarForDisplay ? (
+                <img src={roomAvatarForDisplay} alt="Chat avatar" className="h-full w-full object-cover" />
+              ) : (
+                getInitials(roomMeta.name)
+              )}
+            </div>
+
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{roomMeta.name}</p>
+              <p className="truncate text-xs text-slate-600 dark:text-slate-300">{roomSubtitleText}</p>
+            </div>
+          </div>
+
           <div className="mt-3 space-y-2 text-sm text-slate-700 dark:text-slate-200">
+            <p className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Participants: <span className="font-semibold">{participantCount}</span>
+            </p>
             <p>
               Messages loaded: <span className="font-semibold">{messages.length}</span>
             </p>
-            <p>
-              Participants: <span className="font-semibold">{participantCount}</span>
-            </p>
           </div>
-        </div>
 
-        <div className="rounded-xl border border-white/20 bg-white/20 p-4 text-sm text-slate-700 backdrop-blur-md dark:text-slate-200">
-          <h3 className="font-bold text-slate-900 dark:text-white">Chat Guidelines</h3>
-          <ul className="mt-2 space-y-1.5">
-            <li>Keep messages respectful and school-safe.</li>
-            <li>Use Freedom Wall for anonymous notes.</li>
-            <li>Long press your message to edit or delete it.</li>
-            <li>Swipe right on any message to reply quickly.</li>
-          </ul>
+          <button
+            type="button"
+            onClick={openRoomSettings}
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/20 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            Customize Chat
+          </button>
         </div>
       </aside>
 
@@ -930,6 +1232,141 @@ export default function ChatRoom() {
               >
                 <X className="h-4 w-4" />
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isRoomSettingsOpen && (
+        <div
+          className="fixed inset-0 z-[110] flex items-end justify-center bg-black/50 p-3 sm:items-center"
+          onClick={() => {
+            setIsRoomSettingsOpen(false);
+            clearRoomAvatarSelection();
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-white/15 dark:bg-slate-900"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between border-b border-slate-200 pb-2 dark:border-white/10">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Chat Settings</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRoomSettingsOpen(false);
+                  clearRoomAvatarSelection();
+                }}
+                className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-300 dark:hover:bg-white/10"
+                aria-label="Close chat settings"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {!isRoomSettingsAvailable && (
+              <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Chat settings table is not configured. Run migration
+                <span className="ml-1 font-semibold">20260415_chat_room_settings.sql</span>.
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-300 bg-slate-100 text-sm font-bold text-slate-700 dark:border-white/20 dark:bg-white/10 dark:text-slate-200">
+                  {roomAvatarForEditor ? (
+                    <img src={roomAvatarForEditor} alt="Room avatar preview" className="h-full w-full object-cover" />
+                  ) : (
+                    getInitials(roomNameDraft || roomMeta.name)
+                  )}
+                </div>
+
+                <div className="flex-1 space-y-2">
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/20 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
+                    <ImageIcon className="h-4 w-4" />
+                    Upload chat picture
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleRoomAvatarFileChange}
+                      className="hidden"
+                      disabled={isSavingRoomSettings || !isRoomSettingsAvailable}
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={clearRoomAvatarSelection}
+                    disabled={!roomAvatarFile || isSavingRoomSettings}
+                    className="ml-2 inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Clear upload
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Chat Name</label>
+                <input
+                  type="text"
+                  value={roomNameDraft}
+                  onChange={(event) => setRoomNameDraft(event.target.value)}
+                  placeholder="Community Chat"
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-white/20 dark:bg-slate-950 dark:text-slate-100"
+                  disabled={isSavingRoomSettings || !isRoomSettingsAvailable}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Subtitle</label>
+                <input
+                  type="text"
+                  value={roomSubtitleDraft}
+                  onChange={(event) => setRoomSubtitleDraft(event.target.value)}
+                  placeholder="What this chat is about"
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-white/20 dark:bg-slate-950 dark:text-slate-100"
+                  disabled={isSavingRoomSettings || !isRoomSettingsAvailable}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Chat Picture URL</label>
+                <input
+                  type="url"
+                  value={roomAvatarUrlDraft}
+                  onChange={(event) => setRoomAvatarUrlDraft(event.target.value)}
+                  placeholder="https://example.com/chat-image.jpg"
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-white/20 dark:bg-slate-950 dark:text-slate-100"
+                  disabled={isSavingRoomSettings || !isRoomSettingsAvailable}
+                />
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                  Upload from device or paste image URL. Uploaded file takes priority.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center justify-end gap-2 border-t border-slate-200 pt-3 dark:border-white/10">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRoomSettingsOpen(false);
+                  clearRoomAvatarSelection();
+                }}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/20 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void handleSaveRoomSettings()}
+                disabled={isSavingRoomSettings || !isRoomSettingsAvailable}
+                className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
+              >
+                <Save className="h-4 w-4" />
+                {isSavingRoomSettings ? "Saving..." : "Save changes"}
               </button>
             </div>
           </div>

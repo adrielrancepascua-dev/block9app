@@ -39,9 +39,6 @@ export default function ChatPage() {
           <h1 className="text-2xl font-bold text-slate-800 drop-shadow-md sm:text-3xl dark:text-white">
             Community Chat
           </h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-200">
-            Real-time chat for everyone using Block9.
-          </p>
         </div>
 
         <ChatRoom />
