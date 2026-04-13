@@ -44,7 +44,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <AuthProvider>
           <Navbar />
-          <EnvWarning />
+          {process.env.NODE_ENV !== "production" && <EnvWarning />}
           {children}
           <Toaster position="top-center" richColors />
         </AuthProvider>

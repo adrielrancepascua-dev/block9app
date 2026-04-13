@@ -468,7 +468,7 @@ export default function FreedomWall() {
         /row-level security|permission denied/i.test(updatePositionError.message || '');
       setError(
         isRlsError
-          ? 'Could not save note position due to database policy. Run the move-update SQL migration in Supabase.'
+          ? 'Could not save note position right now.'
           : 'Could not save note position right now.'
       );
       return;
@@ -500,7 +500,7 @@ export default function FreedomWall() {
 
       if (voteInsertError?.code === '42P01') {
         setIsVoteFeatureAvailable(false);
-        setVoteError('Clear-vote feature is not set up in the database yet.');
+        setVoteError('Clear-vote is temporarily unavailable.');
         return;
       }
 
@@ -742,7 +742,7 @@ export default function FreedomWall() {
 
             {!isVoteFeatureAvailable && (
               <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                Vote-to-clear is not configured in the database yet.
+                Vote-to-clear is temporarily unavailable.
               </div>
             )}
 

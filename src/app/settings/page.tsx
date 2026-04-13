@@ -181,14 +181,14 @@ export default function SettingsPage() {
       setShowPreview(false);
 
       if (avatarColumnMissing) {
-        toast.success("Saved name/background. Run latest migration to enable profile photos.");
+        toast.success("Settings saved. Profile photo is temporarily unavailable.");
       } else {
         toast.success("Settings saved successfully!");
       }
     } catch (err: any) {
       console.error("Error saving settings:", err.message);
       if (/bucket|storage|not found/i.test(err?.message || "")) {
-        toast.error("Media upload is not configured yet. Run the profile media migration.");
+        toast.error("Media upload is temporarily unavailable. Please try again later.");
       } else {
         toast.error(`Failed to save settings: ${err.message || "Unknown error"}`);
       }
@@ -388,11 +388,6 @@ export default function SettingsPage() {
           </div>
         )}
 
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900/30 dark:bg-blue-900/20">
-          <p className="text-sm text-blue-900 dark:text-blue-200">
-            <strong>Tip:</strong> Run the latest profile-media migration in Supabase before using uploads on production.
-          </p>
-        </div>
       </div>
     </ProfileLayout>
   );

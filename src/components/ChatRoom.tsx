@@ -629,7 +629,7 @@ export default function ChatRoom() {
     }
 
     if (!isRoomSettingsAvailable) {
-      toast.error("Run the chat room settings migration in Supabase first.");
+      toast.error("Chat settings are temporarily unavailable.");
       return;
     }
 
@@ -661,7 +661,7 @@ export default function ChatRoom() {
 
       if (saveError?.code === "42P01") {
         setIsRoomSettingsAvailable(false);
-        toast.error("Run migration 20260415_chat_room_settings.sql in Supabase.");
+        toast.error("Chat settings are temporarily unavailable.");
         return;
       }
 
@@ -674,7 +674,7 @@ export default function ChatRoom() {
     } catch (err: any) {
       console.error("Error saving chat room settings:", err?.message || err);
       if (/bucket|storage|not found/i.test(err?.message || "")) {
-        toast.error("Chat media storage is not configured yet. Run the latest migration.");
+        toast.error("Image upload is temporarily unavailable.");
       } else {
         toast.error("Could not update chat settings right now.");
       }
@@ -832,7 +832,7 @@ export default function ChatRoom() {
 
       if (insertError?.code === "42P01") {
         setIsChatAvailable(false);
-        setError("Chat table is not set up yet. Run the chat migration in Supabase.");
+        setError("Chat is temporarily unavailable right now.");
         setMessages((prev) => prev.filter((message) => message.id !== optimisticId));
         return;
       }
@@ -951,9 +951,7 @@ export default function ChatRoom() {
 
         {!isChatAvailable ? (
           <div className="m-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-            Chat is not configured in the database yet. Run migration
-            <span className="ml-1 font-semibold">20260413_global_chatroom.sql</span>
-            in Supabase SQL Editor.
+            Chat is temporarily unavailable. Please try again later.
           </div>
         ) : (
           <>
@@ -1308,8 +1306,7 @@ export default function ChatRoom() {
 
             {!isRoomSettingsAvailable && (
               <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                Chat settings table is not configured. Run migration
-                <span className="ml-1 font-semibold">20260415_chat_room_settings.sql</span>.
+                Chat settings are temporarily unavailable.
               </div>
             )}
 
