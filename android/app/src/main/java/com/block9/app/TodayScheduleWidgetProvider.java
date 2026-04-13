@@ -63,6 +63,7 @@ public class TodayScheduleWidgetProvider extends AppWidgetProvider {
         for (int widgetId : appWidgetIds) {
             RemoteViews views = buildBaseViews(context, widgetId);
             if (showLoading) {
+                views.setTextViewText(R.id.widget_title, context.getString(R.string.widget_today_schedule_title));
                 views.setTextViewText(R.id.widget_date, formatTodayLabel());
                 views.setTextViewText(R.id.widget_content, context.getString(R.string.widget_loading));
             }
@@ -74,6 +75,7 @@ public class TodayScheduleWidgetProvider extends AppWidgetProvider {
             WidgetPayload payload = fetchPayload(context);
             for (int widgetId : targetIds) {
                 RemoteViews views = buildBaseViews(context, widgetId);
+                views.setTextViewText(R.id.widget_title, payload.titleText);
                 views.setTextViewText(R.id.widget_date, payload.dateLabel);
                 views.setTextViewText(R.id.widget_content, payload.bodyText);
                 appWidgetManager.updateAppWidget(widgetId, views);
@@ -86,7 +88,6 @@ public class TodayScheduleWidgetProvider extends AppWidgetProvider {
 
         PendingIntent openAppIntent = buildOpenAppIntent(context, widgetId);
         views.setOnClickPendingIntent(R.id.widget_root, openAppIntent);
-        views.setOnClickPendingIntent(R.id.widget_open_button, openAppIntent);
         views.setOnClickPendingIntent(R.id.widget_refresh_button, buildRefreshIntent(context, widgetId));
 
         return views;
@@ -121,7 +122,11 @@ public class TodayScheduleWidgetProvider extends AppWidgetProvider {
         String endpoint = BuildConfig.WIDGET_ENDPOINT;
 
         if (TextUtils.isEmpty(endpoint)) {
-            return new WidgetPayload(formatTodayLabel(), context.getString(R.string.widget_fetch_failed));
+            return new WidgetPayload(
+                    context.getString(R.string.widget_today_schedule_title),
+                    formatTodayLabel(),
+                    context.getString(R.string.widget_fetch_failed)
+            );
         }
 
         if (!TextUtils.isEmpty(BuildConfig.WIDGET_API_KEY)) {
@@ -146,42 +151,67 @@ public class TodayScheduleWidgetProvider extends AppWidgetProvider {
             String response = readText(stream);
 
             if (status < 200 || status >= 300) {
-                return new WidgetPayload(formatTodayLabel(), context.getString(R.string.widget_fetch_failed));
+                return new WidgetPayload(
+                        context.getString(R.string.widget_today_schedule_title),
+                        formatTodayLabel(),
+                        context.getString(R.string.widget_fetch_failed)
+                );
             }
 
             JSONObject root = new JSONObject(response);
             JSONArray schedules = root.optJSONArray("schedules");
             String date = root.optString("date");
+            int total = schedules == null ? 0 : schedules.length();
 
-            if (schedules == null || schedules.length() == 0) {
-                return new WidgetPayload(formatDateLabel(date), context.getString(R.string.widget_no_schedule));
+            if (total == 0) {
+                return new WidgetPayload(
+                        context.getString(R.string.widget_today_schedule_title),
+                        formatDateLabel(date),
+                        context.getString(R.string.widget_no_schedule)
+                );
             }
 
-            int displayCount = Math.min(3, schedules.length());
-            StringBuilder lines = new StringBuilder();
-            for (int i = 0; i < displayCount; i++) {
-                JSONObject item = schedules.optJSONObject(i);
-                if (item == null) continue;
-
-                String startLabel = item.optString("start_label", "TBA");
-                String subject = item.optString("subject", "Class");
-                String room = item.optString("room", "");
-
-                if (lines.length() > 0) lines.append("\n");
-                lines.append(startLabel).append("  ").append(subject);
-                if (!TextUtils.isEmpty(room)) {
-                    lines.append(" • ").append(room);
-                }
+            JSONObject first = schedules.optJSONObject(0);
+            if (first == null) {
+                return new WidgetPayload(
+                        context.getString(R.string.widget_today_schedule_title),
+                        formatDateLabel(date),
+                        context.getString(R.string.widget_no_schedule)
+                );
             }
 
-            int remaining = schedules.length() - displayCount;
+            String startLabel = first.optString("start_label", "TBA");
+            String subject = trimWithEllipsis(first.optString("subject", "Class"), 24);
+            String room = trimWithEllipsis(first.optString("room", ""), 20);
+
+            StringBuilder summary = new StringBuilder();
+            summary.append("Next ").append(startLabel).append(" • ").append(subject);
+
+            if (!TextUtils.isEmpty(room)) {
+                summary.append("\n").append(room);
+            }
+
+            int remaining = total - 1;
             if (remaining > 0) {
-                lines.append("\n+").append(remaining).append(" more");
+                summary.append("\n+").append(remaining).append(" more class");
+                if (remaining > 1) {
+                    summary.append("es");
+                }
+            } else {
+                summary.append("\nOnly class today");
             }
 
-            return new WidgetPayload(formatDateLabel(date), lines.toString());
+            return new WidgetPayload(
+                    buildTitle(total),
+                    formatDateLabel(date),
+                    summary.toString()
+            );
         } catch (Exception ignored) {
-            return new WidgetPayload(formatTodayLabel(), context.getString(R.string.widget_fetch_failed));
+            return new WidgetPayload(
+                    context.getString(R.string.widget_today_schedule_title),
+                    formatTodayLabel(),
+                    context.getString(R.string.widget_fetch_failed)
+            );
         } finally {
             try {
                 if (stream != null) stream.close();
@@ -232,11 +262,29 @@ public class TodayScheduleWidgetProvider extends AppWidgetProvider {
         }
     }
 
+    private String trimWithEllipsis(String text, int maxLength) {
+        if (TextUtils.isEmpty(text) || text.length() <= maxLength) {
+            return text;
+        }
+        return text.substring(0, Math.max(0, maxLength - 3)).trim() + "...";
+    }
+
+    private String buildTitle(int totalClasses) {
+        if (totalClasses <= 0) {
+            return "Today's Schedule";
+        }
+        return totalClasses == 1
+                ? "Today • 1 class"
+                : "Today • " + totalClasses + " classes";
+    }
+
     private static class WidgetPayload {
+        final String titleText;
         final String dateLabel;
         final String bodyText;
 
-        WidgetPayload(String dateLabel, String bodyText) {
+        WidgetPayload(String titleText, String dateLabel, String bodyText) {
+            this.titleText = titleText;
             this.dateLabel = dateLabel;
             this.bodyText = bodyText;
         }

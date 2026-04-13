@@ -97,6 +97,53 @@ If you do not want to use a real phone yet, use an emulator in Android Studio.
 - Opens Block9 when tapped.
 - Has a refresh button.
 
+## How your classmates can download it
+
+You have 2 choices:
+
+1. Quick sharing (fastest)
+2. Play Store testing (best long-term)
+
+### Option 1: Quick sharing (APK file)
+
+Use this if you want classmates to install now.
+
+In Android Studio:
+
+1. Build > Build Bundle(s) / APK(s) > Build APK(s)
+2. Wait for success message.
+3. Click "locate" to open APK folder.
+4. Send the APK file to classmates (Google Drive, Messenger, etc.).
+
+Classmate install steps:
+
+1. Download APK on phone.
+2. Open APK file.
+3. Allow "Install unknown apps" when asked.
+4. Install.
+
+Important:
+
+- They must reinstall each time you send an updated APK.
+
+### Option 2: Google Play testing (recommended)
+
+Use this if you want cleaner updates for everyone.
+
+1. Create Google Play Console account.
+2. In Android Studio, build a signed AAB:
+	- Build > Generate Signed Bundle / APK > Android App Bundle
+3. Upload AAB to Play Console.
+4. Create Closed testing track.
+5. Add classmate emails as testers.
+6. Share testing link with classmates.
+
+Benefits:
+
+- Classmates install from Play Store.
+- Updates come through Play Store.
+- No need to keep enabling unknown app installs.
+
 ## If you want the Play Store later
 
 You can do that after the app works on your phone.

@@ -21,6 +21,10 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    buildFeatures {
+        // Required so custom BuildConfig fields (WIDGET_ENDPOINT / WIDGET_API_KEY) are generated
+        buildConfig = true
+    }
     buildTypes {
         release {
             minifyEnabled false
