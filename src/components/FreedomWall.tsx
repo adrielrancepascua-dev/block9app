@@ -707,15 +707,15 @@ export default function FreedomWall() {
         </div>
       )}
 
-      <div className={isMobileBoardExpanded ? 'fixed inset-0 z-[70] sm:contents' : ''}>
+      <div>
         {isMobileBoardExpanded && (
-          <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-sm sm:hidden" />
+          <div className="fixed inset-0 z-[80] bg-slate-900/55 backdrop-blur-md sm:hidden" />
         )}
 
         <div
           className={`relative overflow-hidden bg-[url('https://www.transparenttextures.com/patterns/cork-board.png')] bg-[#d4a88c] ${
             isMobileBoardExpanded
-              ? 'fixed inset-x-0 top-0 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-[71] rounded-none border-y-4 border-amber-800/80 shadow-2xl sm:static sm:inset-auto sm:top-auto sm:bottom-auto'
+              ? 'fixed inset-x-0 top-0 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-[81] rounded-none border-y-4 border-amber-800/80 shadow-2xl sm:static sm:inset-auto sm:top-auto sm:bottom-auto'
               : 'mb-4 min-h-[460px] flex-1 rounded-xl border-4 border-amber-800/80 shadow-inner sm:mb-8 sm:min-h-[400px] sm:border-8'
           }`}
         >
