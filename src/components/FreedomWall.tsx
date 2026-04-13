@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/context/SupabaseAuthContext';
 import { supabase } from '@/utils/supabase';
 import { motion, AnimatePresence, type PanInfo } from 'framer-motion';
@@ -55,6 +56,7 @@ export default function FreedomWall() {
   const [isVoteFeatureAvailable, setIsVoteFeatureAvailable] = useState(true);
   const [isMobileBoardExpanded, setIsMobileBoardExpanded] = useState(false);
   const [isPanningBoard, setIsPanningBoard] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const boardRef = useRef<HTMLDivElement | null>(null);
   const boardViewportRef = useRef<HTMLDivElement | null>(null);
   const boardPanStartRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
@@ -137,6 +139,10 @@ export default function FreedomWall() {
       setIsRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -604,6 +610,135 @@ export default function FreedomWall() {
     );
   }
 
+  const boardPanelClassName =
+    "overflow-hidden bg-[url('https://www.transparenttextures.com/patterns/cork-board.png')] bg-[#d4a88c]";
+
+  const renderBoard = (expanded: boolean) => (
+    <div
+      className={expanded
+        ? `${boardPanelClassName} absolute inset-x-0 top-0 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] rounded-none border-y-4 border-amber-800/80 shadow-2xl`
+        : `${boardPanelClassName} relative mb-4 min-h-[460px] flex-1 rounded-xl border-4 border-amber-800/80 shadow-inner sm:mb-8 sm:min-h-[400px] sm:border-8`}
+    >
+      {!expanded && (
+        <button
+          type="button"
+          onClick={() => setIsMobileBoardExpanded(true)}
+          className="absolute right-3 top-3 z-30 inline-flex items-center gap-1 rounded-md bg-black/45 px-2.5 py-1.5 text-xs font-semibold text-white backdrop-blur-sm sm:hidden"
+        >
+          <Maximize2 className="h-3.5 w-3.5" />
+          Expand
+        </button>
+      )}
+
+      {expanded && (
+        <button
+          type="button"
+          onClick={() => setIsMobileBoardExpanded(false)}
+          className="absolute right-3 top-[calc(0.5rem+env(safe-area-inset-top))] z-30 inline-flex items-center gap-1 rounded-md bg-black/45 px-2.5 py-1.5 text-xs font-semibold text-white backdrop-blur-sm hover:bg-black/55 sm:hidden"
+          aria-label="Collapse wall"
+        >
+          <Minimize2 className="h-3.5 w-3.5" />
+          Collapse
+        </button>
+      )}
+
+      <div
+        ref={boardViewportRef}
+        className={`absolute inset-0 overflow-auto ${
+          expanded
+            ? `${isPanningBoard ? 'cursor-grabbing' : 'cursor-grab'} touch-none`
+            : ''
+        }`}
+        onPointerDown={handleBoardViewportPointerDown}
+        onPointerMove={handleBoardViewportPointerMove}
+        onPointerUp={handleBoardViewportPointerUp}
+        onPointerCancel={handleBoardViewportPointerUp}
+      >
+        <div
+          ref={boardRef}
+          className={`relative ${
+            expanded
+              ? 'h-[155%] min-h-[760px] w-[165%] min-w-[760px]'
+              : 'h-full w-full'
+          }`}
+          onClick={handleBoardPlacement}
+        >
+          {user && (
+            <button
+              type="button"
+              data-draft-pin="true"
+              onPointerDown={handleDraftPinPointerDown}
+              aria-label="Drag to place the next note"
+              title="Drag to place the next note"
+              className={`absolute z-20 h-5 w-5 -translate-x-1/2 -translate-y-1/2 touch-none rounded-full border-2 border-white bg-blue-500 shadow-lg ring-4 ring-blue-500/20 transition ${isDraggingPin ? 'cursor-grabbing scale-110' : 'cursor-grab'}`}
+              style={{
+                top: `${draftPosition.y}%`,
+                left: `${draftPosition.x}%`,
+              }}
+            />
+          )}
+
+          {posts.map((post) => {
+            let rotateDeg = 0;
+            if (post.id) rotateDeg = (post.id.charCodeAt(0) % 10) - 5;
+            return (
+              <motion.div
+                layoutId={`post-${post.id}`}
+                key={post.id}
+                data-note-card="true"
+                data-note-id={post.id}
+                onClick={() => {
+                  // Ignore clicks that immediately follow a drag to avoid opening the note unintentionally.
+                  if (lastInteractionWasDragRef.current) return;
+                  setSelectedPost(post);
+                }}
+                drag
+                onDragStart={handleNoteDragStart}
+                dragConstraints={boardRef}
+                dragMomentum={false}
+                dragElastic={0}
+                dragSnapToOrigin
+                onDragEnd={(event, info) => {
+                  handleNoteDragEnd(post.id, { x: post.x_pos, y: post.y_pos }, event, info);
+                  clearDragOpenBlock();
+                }}
+                className="group absolute flex h-28 w-28 cursor-pointer flex-col overflow-hidden p-2.5 shadow-md transition-shadow hover:shadow-xl sm:h-32 sm:w-32 sm:p-3"
+                style={{
+                  top: `${post.y_pos}%`,
+                  left: `${post.x_pos}%`,
+                  backgroundColor: getPostColor(post),
+                  rotate: `${rotateDeg}deg`,
+                }}
+                whileHover={{ scale: 1.05, zIndex: 10 }}
+              >
+                <div className="absolute top-1 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-red-500 shadow-sm border border-red-700 z-10">
+                  <div className="w-1 h-1 bg-white/60 rounded-full absolute top-[2px] left-[2px]" />
+                </div>
+
+                <p className="text-black/80 mt-3 text-xs line-clamp-4 font-mono font-medium leading-snug whitespace-pre-wrap">
+                  {post.content}
+                </p>
+
+                <div className="absolute bottom-0 left-0 right-0 bg-black/5 p-1 text-[10px] text-black/60 truncate font-semibold border-t border-black/10">
+                  {post.is_anonymous ? 'Anonymous' : post.author_name}
+                </div>
+              </motion.div>
+            );
+          })}
+
+          {posts.length === 0 && !isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center p-4">
+              <div className="text-center rounded-xl bg-white/70 backdrop-blur-sm p-6 text-amber-900 border border-white/60 shadow-sm">
+                <p className="text-lg font-bold">The whiteboard is empty</p>
+                <p className="text-sm mt-1">Be the first to pin a note!</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex min-h-[calc(100dvh-11rem)] flex-col">
       {user && (
@@ -708,135 +843,15 @@ export default function FreedomWall() {
       )}
 
       <div>
-        {isMobileBoardExpanded && (
-          <div className="fixed inset-0 z-[80] bg-slate-900/55 backdrop-blur-md sm:hidden" />
-        )}
-
-        <div
-          className={`relative overflow-hidden bg-[url('https://www.transparenttextures.com/patterns/cork-board.png')] bg-[#d4a88c] ${
-            isMobileBoardExpanded
-              ? 'fixed inset-x-0 top-0 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-[81] rounded-none border-y-4 border-amber-800/80 shadow-2xl sm:static sm:inset-auto sm:top-auto sm:bottom-auto'
-              : 'mb-4 min-h-[460px] flex-1 rounded-xl border-4 border-amber-800/80 shadow-inner sm:mb-8 sm:min-h-[400px] sm:border-8'
-          }`}
-        >
-          {!isMobileBoardExpanded && (
-            <button
-              type="button"
-              onClick={() => setIsMobileBoardExpanded(true)}
-              className="absolute right-3 top-3 z-30 inline-flex items-center gap-1 rounded-md bg-black/45 px-2.5 py-1.5 text-xs font-semibold text-white backdrop-blur-sm sm:hidden"
-            >
-              <Maximize2 className="h-3.5 w-3.5" />
-              Expand
-            </button>
+        {!isMobileBoardExpanded && renderBoard(false)}
+        {isMounted && isMobileBoardExpanded &&
+          createPortal(
+            <div className="fixed inset-0 z-[100] sm:hidden">
+              <div className="absolute inset-0 bg-slate-900/55 backdrop-blur-md" />
+              {renderBoard(true)}
+            </div>,
+            document.body
           )}
-
-          {isMobileBoardExpanded && (
-            <button
-              type="button"
-              onClick={() => setIsMobileBoardExpanded(false)}
-              className="absolute right-3 top-[calc(0.5rem+env(safe-area-inset-top))] z-30 inline-flex items-center gap-1 rounded-md bg-black/45 px-2.5 py-1.5 text-xs font-semibold text-white backdrop-blur-sm hover:bg-black/55 sm:hidden"
-              aria-label="Collapse wall"
-            >
-              <Minimize2 className="h-3.5 w-3.5" />
-              Collapse
-            </button>
-          )}
-
-          <div
-            ref={boardViewportRef}
-            className={`absolute inset-0 overflow-auto ${
-              isMobileBoardExpanded
-                ? `${isPanningBoard ? 'cursor-grabbing' : 'cursor-grab'} touch-none`
-                : ''
-            }`}
-            onPointerDown={handleBoardViewportPointerDown}
-            onPointerMove={handleBoardViewportPointerMove}
-            onPointerUp={handleBoardViewportPointerUp}
-            onPointerCancel={handleBoardViewportPointerUp}
-          >
-            <div
-              ref={boardRef}
-              className={`relative ${
-                isMobileBoardExpanded
-                  ? 'h-[155%] min-h-[760px] w-[165%] min-w-[760px]'
-                  : 'h-full w-full'
-              }`}
-              onClick={handleBoardPlacement}
-            >
-            {user && (
-              <button
-                type="button"
-                data-draft-pin="true"
-                onPointerDown={handleDraftPinPointerDown}
-                aria-label="Drag to place the next note"
-                title="Drag to place the next note"
-                className={`absolute z-20 h-5 w-5 -translate-x-1/2 -translate-y-1/2 touch-none rounded-full border-2 border-white bg-blue-500 shadow-lg ring-4 ring-blue-500/20 transition ${isDraggingPin ? 'cursor-grabbing scale-110' : 'cursor-grab'}`}
-                style={{
-                  top: `${draftPosition.y}%`,
-                  left: `${draftPosition.x}%`,
-                }}
-              />
-            )}
-
-            {posts.map((post) => {
-              let rotateDeg = 0;
-              if (post.id) rotateDeg = (post.id.charCodeAt(0) % 10) - 5;
-              return (
-                <motion.div
-                  layoutId={`post-${post.id}`}
-                  key={post.id}
-                  data-note-card="true"
-                  data-note-id={post.id}
-                  onClick={() => {
-                    // Ignore clicks that immediately follow a drag to avoid opening the note unintentionally.
-                    if (lastInteractionWasDragRef.current) return;
-                    setSelectedPost(post);
-                  }}
-                  drag
-                  onDragStart={handleNoteDragStart}
-                  dragConstraints={boardRef}
-                  dragMomentum={false}
-                  dragElastic={0}
-                  dragSnapToOrigin
-                  onDragEnd={(event, info) => {
-                    handleNoteDragEnd(post.id, { x: post.x_pos, y: post.y_pos }, event, info);
-                    clearDragOpenBlock();
-                  }}
-                  className="group absolute flex h-28 w-28 cursor-pointer flex-col overflow-hidden p-2.5 shadow-md transition-shadow hover:shadow-xl sm:h-32 sm:w-32 sm:p-3"
-                  style={{
-                    top: `${post.y_pos}%`,
-                    left: `${post.x_pos}%`,
-                    backgroundColor: getPostColor(post),
-                    rotate: `${rotateDeg}deg`,
-                  }}
-                  whileHover={{ scale: 1.05, zIndex: 10 }}
-                >
-                  <div className="absolute top-1 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-red-500 shadow-sm border border-red-700 z-10">
-                    <div className="w-1 h-1 bg-white/60 rounded-full absolute top-[2px] left-[2px]" />
-                  </div>
-
-                  <p className="text-black/80 mt-3 text-xs line-clamp-4 font-mono font-medium leading-snug whitespace-pre-wrap">
-                    {post.content}
-                  </p>
-
-                  <div className="absolute bottom-0 left-0 right-0 bg-black/5 p-1 text-[10px] text-black/60 truncate font-semibold border-t border-black/10">
-                    {post.is_anonymous ? 'Anonymous' : post.author_name}
-                  </div>
-                </motion.div>
-              );
-            })}
-
-            {posts.length === 0 && !isLoading && (
-              <div className="absolute inset-0 flex items-center justify-center p-4">
-                <div className="text-center rounded-xl bg-white/70 backdrop-blur-sm p-6 text-amber-900 border border-white/60 shadow-sm">
-                  <p className="text-lg font-bold">The whiteboard is empty</p>
-                  <p className="text-sm mt-1">Be the first to pin a note!</p>
-                </div>
-              </div>
-            )}
-            </div>
-          </div>
-        </div>
       </div>
 
       <AnimatePresence>
