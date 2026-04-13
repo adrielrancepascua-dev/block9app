@@ -4,8 +4,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import ProfileLayout from "@/components/ProfileLayout";
+import AttendanceToggle, { type AttendanceStatus } from "@/components/AttendanceToggle";
 import { supabase } from "@/utils/supabase";
 import { CalendarDays, Clock3, MapPin, X } from "lucide-react";
+import { toast } from "sonner";
 
 interface Schedule {
   id: string;
@@ -20,6 +22,9 @@ interface AttendanceSummary {
   late: string[];
   absent: string[];
 }
+
+type AttendanceSummaryMap = Record<string, AttendanceSummary>;
+type MyAttendanceMap = Record<string, AttendanceStatus>;
 
 interface DayCell {
   key: string;
@@ -104,7 +109,8 @@ export default function Home() {
   const router = useRouter();
 
   const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [attendanceSummaryMap, setAttendanceSummaryMap] = useState<Record<string, AttendanceSummary>>({});
+  const [attendanceSummaryMap, setAttendanceSummaryMap] = useState<AttendanceSummaryMap>({});
+  const [myAttendanceMap, setMyAttendanceMap] = useState<MyAttendanceMap>({});
   const [isFetching, setIsFetching] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [selectedDayEvents, setSelectedDayEvents] = useState<{
@@ -112,6 +118,7 @@ export default function Home() {
     schedules: Schedule[];
   } | null>(null);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
@@ -159,6 +166,7 @@ export default function Home() {
       if (attendanceError) throw attendanceError;
 
       const summaryMap: Record<string, AttendanceSummary> = {};
+      const currentUserStatusMap: MyAttendanceMap = {};
       (attendanceData || []).forEach((record: any) => {
         const status = record.status as keyof AttendanceSummary;
         if (!["going", "late", "absent"].includes(status)) return;
@@ -173,9 +181,14 @@ export default function Home() {
 
         const displayName = record.user_id === user?.id ? "You" : record.profiles?.name || "Guest";
         summaryMap[record.schedule_id][status].push(displayName);
+
+        if (record.user_id === user?.id) {
+          currentUserStatusMap[record.schedule_id] = status as AttendanceStatus;
+        }
       });
 
       setAttendanceSummaryMap(summaryMap);
+      setMyAttendanceMap(currentUserStatusMap);
     } catch (err: any) {
       console.error("Error fetching schedules:", err.message);
       setFetchError("Could not refresh schedules right now. Retrying automatically...");
@@ -234,6 +247,77 @@ export default function Home() {
   const selectedAttendance = selectedSchedule
     ? attendanceSummaryMap[selectedSchedule.id] || emptySummary
     : emptySummary;
+  const selectedCurrentStatus = selectedSchedule
+    ? myAttendanceMap[selectedSchedule.id] || null
+    : null;
+
+  const applyLocalAttendanceChange = (
+    scheduleId: string,
+    newStatus: AttendanceStatus,
+    previousStatus: AttendanceStatus,
+    displayName: string
+  ) => {
+    setAttendanceSummaryMap((prev) => {
+      const existingSummary = prev[scheduleId] || emptySummary;
+      const nextSummary: AttendanceSummary = {
+        going: existingSummary.going.filter((name) => name !== displayName),
+        late: existingSummary.late.filter((name) => name !== displayName),
+        absent: existingSummary.absent.filter((name) => name !== displayName),
+      };
+
+      if (newStatus) {
+        nextSummary[newStatus] = [...nextSummary[newStatus], displayName];
+      }
+
+      return {
+        ...prev,
+        [scheduleId]: nextSummary,
+      };
+    });
+
+    setMyAttendanceMap((prev) => {
+      const nextMap = { ...prev };
+      if (newStatus) {
+        nextMap[scheduleId] = newStatus;
+      } else {
+        delete nextMap[scheduleId];
+      }
+      return nextMap;
+    });
+  };
+
+  const handleStatusChange = async (scheduleId: string, newStatus: NonNullable<AttendanceStatus>) => {
+    if (!user || isUpdatingStatus) return;
+
+    const previousStatus = myAttendanceMap[scheduleId] || null;
+    const displayName = "You";
+
+    setIsUpdatingStatus(true);
+    applyLocalAttendanceChange(scheduleId, newStatus, previousStatus, displayName);
+
+    try {
+      const { error } = await supabase.from("attendance").upsert(
+        {
+          user_id: user.id,
+          schedule_id: scheduleId,
+          status: newStatus,
+        },
+        {
+          onConflict: "user_id,schedule_id",
+        }
+      );
+
+      if (error) throw error;
+
+      toast.success(`Attendance marked as ${newStatus}`);
+    } catch (err: any) {
+      console.error("Failed to update attendance:", err?.message || err);
+      applyLocalAttendanceChange(scheduleId, previousStatus, newStatus, displayName);
+      toast.error("Failed to update attendance. Please try again.");
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
 
   const goToPreviousMonth = () => {
     setViewMonth((prev) => {
@@ -538,10 +622,24 @@ export default function Home() {
             </div>
 
             <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-white/5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Attendance Status
-              </p>
-              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Attendance Status
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Your current status: <span className="font-semibold text-slate-700 dark:text-slate-200">{selectedCurrentStatus || "none"}</span>
+                </p>
+              </div>
+
+              <div className="mt-3">
+                <AttendanceToggle
+                  scheduleId={selectedSchedule?.id || ""}
+                  currentStatus={selectedCurrentStatus}
+                  onStatusChange={handleStatusChange}
+                />
+              </div>
+
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
                 {(Object.keys(statusMeta) as Array<keyof typeof statusMeta>).map((status) => {
                   const names = selectedAttendance[status];
                   return (
