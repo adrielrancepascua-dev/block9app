@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Block9</string>
+    <string name="title_activity_main">Block9</string>
+    <string name="package_name">com.block9.app</string>
+    <string name="custom_url_scheme">com.block9.app</string>
+    <string name="widget_today_schedule_title">Today\'s Schedule</string>
+    <string name="widget_today_schedule_description">Shows today\'s Block9 schedule.</string>
+    <string name="widget_loading">Loading schedule...</string>
+    <string name="widget_no_schedule">No schedule today</string>
+    <string name="widget_fetch_failed">Could not refresh schedule</string>
+    <string name="widget_open_app">Open Block9</string>
+    <string name="widget_refresh">Refresh</string>
+</resources>

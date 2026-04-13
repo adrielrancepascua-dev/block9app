@@ -1,5 +1,19 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Native Android App + Widget
+
+This repo now includes a Capacitor Android shell and a home-screen widget that shows today's schedule.
+
+- Full setup guide: [MOBILE_APP_WIDGET_GUIDE.md](MOBILE_APP_WIDGET_GUIDE.md)
+- Widget data API: `/api/widget/today-schedule`
+
+Useful commands:
+
+```bash
+npm run cap:sync:android
+npm run android:open
+```
+
 ## Getting Started
 
 First, run the development server:
