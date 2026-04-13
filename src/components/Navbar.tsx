@@ -126,6 +126,17 @@ export default function Navbar() {
 
             {/* Right: User Profile Info */}
             <div className="flex items-center gap-3">
+              {profile?.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt="Profile"
+                  className="h-9 w-9 rounded-full border border-white/30 object-cover"
+                />
+              ) : (
+                <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/30 bg-blue-600/80 text-sm font-bold text-white">
+                  {(profile?.name?.trim()?.charAt(0) || "S").toUpperCase()}
+                </div>
+              )}
               <div className="text-right">
                 <p className="text-sm font-medium text-slate-900 dark:text-white">
                   {profile?.name || "Student"}

@@ -11,6 +11,7 @@ export interface Profile {
   name: string;
   role: 'student' | 'admin' | 'teacher';
   custom_bg_url: string | null;
+  avatar_url?: string | null;
   created_at: string;
 }
 

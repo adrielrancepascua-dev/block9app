@@ -5,12 +5,15 @@ import { useAuth } from "@/context/SupabaseAuthContext";
 
 export default function ProfileLayout({ 
   children, 
-  customBgUrl 
+  customBgUrl,
+  containerClassName,
 }: { 
   children: ReactNode;
   customBgUrl?: string;
+  containerClassName?: string;
 }) {
   const { profile } = useAuth();
+  const widthClass = containerClassName?.trim() || "max-w-5xl";
 
   // Use the passed customBgUrl for preview, fall back to profile's custom_bg_url, then use default
   const bgUrl = customBgUrl || profile?.custom_bg_url || "https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&q=80";
@@ -35,7 +38,7 @@ export default function ProfileLayout({
           - backdrop-blur-md: Medium blur behind the container
           - border border-white/20: Subtle translucent border
         */}
-        <div className="w-full max-w-5xl rounded-xl border border-white/20 bg-white/10 p-3 shadow-2xl backdrop-blur-md sm:rounded-2xl sm:p-6">
+        <div className={`w-full ${widthClass} rounded-xl border border-white/20 bg-white/10 p-3 shadow-2xl backdrop-blur-md sm:rounded-2xl sm:p-6`}>
           {children}
         </div>
 

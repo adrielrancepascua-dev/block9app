@@ -33,7 +33,7 @@ export default function ChatPage() {
   }
 
   return (
-    <ProfileLayout>
+    <ProfileLayout containerClassName="max-w-7xl">
       <div className="w-full">
         <div className="mb-5 sm:mb-7">
           <h1 className="text-2xl font-bold text-slate-800 drop-shadow-md sm:text-3xl dark:text-white">
