@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/context/SupabaseAuthContext';
 import { supabase } from '@/utils/supabase';
 import { motion, AnimatePresence, type PanInfo } from 'framer-motion';
-import { X, Trash2 } from 'lucide-react';
+import { ArrowLeft, Maximize2, Minimize2, Trash2, X } from 'lucide-react';
 
 interface ProfileData {
   name: string;
@@ -53,8 +53,12 @@ export default function FreedomWall() {
   const [isClearing, setIsClearing] = useState(false);
   const [voteError, setVoteError] = useState<string | null>(null);
   const [isVoteFeatureAvailable, setIsVoteFeatureAvailable] = useState(true);
+  const [isMobileBoardExpanded, setIsMobileBoardExpanded] = useState(false);
+  const [isPanningBoard, setIsPanningBoard] = useState(false);
   const boardRef = useRef<HTMLDivElement | null>(null);
-  const lastDragTimestampRef = useRef(0);
+  const boardViewportRef = useRef<HTMLDivElement | null>(null);
+  const boardPanStartRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
+  const didPanBoardRef = useRef(false);
   const lastInteractionWasDragRef = useRef(false);
 
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -260,6 +264,28 @@ export default function FreedomWall() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isMobileBoardExpanded) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    // Start near the center so users can pan around in fullscreen mode.
+    window.requestAnimationFrame(() => {
+      const viewport = boardViewportRef.current;
+      if (!viewport) return;
+      viewport.scrollLeft = Math.max(0, (viewport.scrollWidth - viewport.clientWidth) / 2);
+      viewport.scrollTop = Math.max(0, (viewport.scrollHeight - viewport.clientHeight) / 3);
+    });
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      boardPanStartRef.current = null;
+      didPanBoardRef.current = false;
+      setIsPanningBoard(false);
+    };
+  }, [isMobileBoardExpanded]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -341,9 +367,60 @@ export default function FreedomWall() {
   };
 
   const handleBoardPlacement = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (didPanBoardRef.current) {
+      didPanBoardRef.current = false;
+      return;
+    }
+
     const target = e.target as HTMLElement;
     if (target.closest('[data-note-card="true"]') || target.closest('[data-draft-pin="true"]')) return;
     updateDraftPositionFromPoint(e.clientX, e.clientY);
+  };
+
+  const handleBoardViewportPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isMobileBoardExpanded) return;
+
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-note-card="true"]') || target.closest('[data-draft-pin="true"]')) return;
+
+    const viewport = boardViewportRef.current;
+    if (!viewport) return;
+
+    didPanBoardRef.current = false;
+    boardPanStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: viewport.scrollLeft,
+      scrollTop: viewport.scrollTop,
+    };
+    setIsPanningBoard(true);
+  };
+
+  const handleBoardViewportPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isMobileBoardExpanded) return;
+    if (!boardPanStartRef.current) return;
+
+    const viewport = boardViewportRef.current;
+    if (!viewport) return;
+
+    const deltaX = e.clientX - boardPanStartRef.current.x;
+    const deltaY = e.clientY - boardPanStartRef.current.y;
+
+    if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
+      didPanBoardRef.current = true;
+    }
+
+    viewport.scrollLeft = boardPanStartRef.current.scrollLeft - deltaX;
+    viewport.scrollTop = boardPanStartRef.current.scrollTop - deltaY;
+  };
+
+  const handleBoardViewportPointerUp = () => {
+    boardPanStartRef.current = null;
+    setIsPanningBoard(false);
+
+    window.setTimeout(() => {
+      didPanBoardRef.current = false;
+    }, 0);
   };
 
   const handleDraftPinPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -399,8 +476,6 @@ export default function FreedomWall() {
       x: clamp(previousPosition.x + deltaXPercent, 0, 92),
       y: clamp(previousPosition.y + deltaYPercent, 0, 92),
     };
-
-    lastDragTimestampRef.current = Date.now();
 
     if (
       Math.abs(nextPosition.x - previousPosition.x) < 0.2 &&
@@ -632,11 +707,65 @@ export default function FreedomWall() {
         </div>
       )}
 
-      <div className="relative mb-4 min-h-[460px] flex-1 overflow-hidden rounded-xl border-4 border-amber-800/80 bg-[url('https://www.transparenttextures.com/patterns/cork-board.png')] bg-[#d4a88c] shadow-inner sm:mb-8 sm:min-h-[400px] sm:border-8">
-        <div className="absolute inset-0 overflow-auto">
+      <div
+        className={`relative overflow-hidden bg-[url('https://www.transparenttextures.com/patterns/cork-board.png')] bg-[#d4a88c] ${
+          isMobileBoardExpanded
+            ? 'fixed inset-0 z-[70] h-[100dvh] rounded-none border-0 shadow-none'
+            : 'mb-4 min-h-[460px] flex-1 rounded-xl border-4 border-amber-800/80 shadow-inner sm:mb-8 sm:min-h-[400px] sm:border-8'
+        }`}
+      >
+        {!isMobileBoardExpanded && (
+          <button
+            type="button"
+            onClick={() => setIsMobileBoardExpanded(true)}
+            className="absolute right-3 top-3 z-30 inline-flex items-center gap-1 rounded-md bg-black/45 px-2.5 py-1.5 text-xs font-semibold text-white backdrop-blur-sm sm:hidden"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+            Expand
+          </button>
+        )}
+
+        {isMobileBoardExpanded && (
+          <div className="absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-black/45 px-3 py-2 backdrop-blur-sm sm:hidden">
+            <button
+              type="button"
+              onClick={() => setIsMobileBoardExpanded(false)}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-semibold text-white hover:bg-white/10"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </button>
+            <span className="text-xs font-semibold uppercase tracking-wide text-white/90">Freedom Wall</span>
+            <button
+              type="button"
+              onClick={() => setIsMobileBoardExpanded(false)}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-semibold text-white hover:bg-white/10"
+              aria-label="Collapse wall"
+            >
+              <Minimize2 className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        <div
+          ref={boardViewportRef}
+          className={`absolute inset-0 overflow-auto ${
+            isMobileBoardExpanded
+              ? `${isPanningBoard ? 'cursor-grabbing' : 'cursor-grab'} touch-none pt-12`
+              : ''
+          }`}
+          onPointerDown={handleBoardViewportPointerDown}
+          onPointerMove={handleBoardViewportPointerMove}
+          onPointerUp={handleBoardViewportPointerUp}
+          onPointerCancel={handleBoardViewportPointerUp}
+        >
           <div
             ref={boardRef}
-            className="relative h-full w-full"
+            className={`relative ${
+              isMobileBoardExpanded
+                ? 'h-[155%] min-h-[760px] w-[165%] min-w-[760px]'
+                : 'h-full w-full'
+            }`}
             onClick={handleBoardPlacement}
           >
             {user && (
