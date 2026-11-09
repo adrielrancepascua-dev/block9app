@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useRef, useState, ReactNod
 import { useRouter } from 'next/navigation';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/utils/supabase';
+import { readCachedProfile, writeCachedProfile } from '@/utils/profile-cache';
 
 // Define the Profile type matching your database schema
 export interface Profile {
@@ -109,12 +110,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           console.warn('Profile not found for user, attempting auto-creation...');
           const createdProfile = await createProfile(userId, email);
           setProfile(createdProfile);
+          if (createdProfile) writeCachedProfile(createdProfile);
         } else {
           console.error('Error fetching profile:', error.message);
-          setProfile(null);
         }
       } else {
-        setProfile(data as Profile);
+        const nextProfile = data as Profile;
+        setProfile(nextProfile);
+        writeCachedProfile(nextProfile);
       }
     } catch (err) {
       console.error('Unexpected error fetching profile:', err);
@@ -146,7 +149,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(currentUser);
         
         if (currentUser) {
-          // Unblock UI immediately once session exists, then fetch profile in background.
+          const cached = readCachedProfile();
+          if (cached?.user_id === currentUser.id) setProfile(cached);
+          // Unblock UI immediately once session exists, then refresh the profile in the background.
           setLoading(false);
           void fetchProfile(currentUser.id, currentUser.email);
         } else {
@@ -271,7 +276,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw error;
     }
 
-    setProfile(data as Profile);
+    const nextProfile = data as Profile;
+    setProfile(nextProfile);
+    writeCachedProfile(nextProfile);
     setProfileReady(true);
   };
 
@@ -326,6 +333,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } else {
       setUser(null);
       setProfile(null);
+      writeCachedProfile(null);
       setLoading(false);
       router.push('/login'); // Force redirect
     }

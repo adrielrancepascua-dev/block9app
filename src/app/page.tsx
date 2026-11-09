@@ -221,8 +221,15 @@ export default function Home() {
       <div className="flex min-h-0 w-full flex-1 flex-col">
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-[var(--ink)] sm:text-3xl">
-              Hi, {profile?.name || "Student"}
+            <h1
+              className="text-2xl font-semibold tracking-tight text-[var(--ink)] sm:text-3xl"
+              aria-busy={profile?.name?.trim() ? undefined : true}
+            >
+              {profile?.name?.trim() ? (
+                <>Hi, {profile.name.trim()}</>
+              ) : (
+                <span className="inline-block h-8 w-48 rounded-lg bg-[var(--quiet)] motion-safe:animate-pulse" aria-hidden="true" />
+              )}
             </h1>
             <p className="mt-1 max-w-md text-sm leading-relaxed text-[var(--muted)]">
               Tap a day. Swipe the preview up for the room and the time.

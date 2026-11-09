@@ -126,7 +126,7 @@ export default function Navbar() {
                 </div>
               )}
               <div className="text-right">
-                <p className="text-sm font-semibold text-[var(--ink)]">{profile?.name || "Student"}</p>
+                <p className="text-sm font-semibold text-[var(--ink)]">{profile?.name?.trim() || ""}</p>
                 <p className="text-xs text-[var(--muted)]">{profile?.role === "admin" ? "Admin" : "Student"}</p>
               </div>
             </div>
