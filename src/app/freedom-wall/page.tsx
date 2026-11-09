@@ -3,7 +3,6 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/SupabaseAuthContext";
-import ProfileLayout from "@/components/ProfileLayout";
 import FreedomWall from "@/components/FreedomWall";
 import AppLoading from "@/components/AppLoading";
 
@@ -24,8 +23,8 @@ export default function FreedomWallPage() {
   }
 
   return (
-    <ProfileLayout fill containerClassName="max-w-6xl">
+    <div className="fixed inset-0 z-10 md:pt-16">
       <FreedomWall />
-    </ProfileLayout>
+    </div>
   );
 }

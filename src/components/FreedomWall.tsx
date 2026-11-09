@@ -44,7 +44,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 export default function FreedomWall() {
   const { user, profile } = useAuth();
   const [content, setContent] = useState("");
-  const [isAnonymous, setIsAnonymous] = useState(true);
+  const [isAnonymous, setIsAnonymous] = useState(false);
   const [noteColor, setNoteColor] = useState(NOTE_COLORS[0]);
   const [composerOpen, setComposerOpen] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -265,7 +265,7 @@ export default function FreedomWall() {
 
     setPosts((prev) => [optimisticPost, ...prev]);
     setContent("");
-    setIsAnonymous(true);
+    setIsAnonymous(false);
     setComposerOpen(false);
 
     try {
@@ -332,7 +332,7 @@ export default function FreedomWall() {
   };
 
   const onNotePointerDown = (event: React.PointerEvent<HTMLButtonElement>, post: Post) => {
-    if (event.button !== 0 || post.id.startsWith("temp-")) return;
+    if (event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     dragRef.current = {
       id: post.id,
@@ -361,7 +361,9 @@ export default function FreedomWall() {
   };
 
   const handleDelete = async (postId: string) => {
-    if (profile?.role !== "admin") return;
+    const post = posts.find((item) => item.id === postId);
+    const ownsNote = post?.author_id === user?.id;
+    if (profile?.role !== "admin" && !ownsNote) return;
     const { error: deleteError } = await supabase.from("freedom_wall").delete().eq("id", postId);
     if (deleteError) {
       setError("Could not delete that note.");
@@ -425,12 +427,15 @@ export default function FreedomWall() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="flex items-start justify-between gap-3">
+    <div
+      className="flex h-full flex-col pb-[calc(4.6rem+env(safe-area-inset-bottom))] md:pb-4"
+      style={corkStyle}
+    >
+      <div className="flex items-center justify-between gap-3 px-4 pt-4">
         <div className="min-w-0">
-          <h1 className="text-[1.65rem] font-semibold tracking-tight sm:text-4xl">Freedom Wall</h1>
-          <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
-            {posts.length} {posts.length === 1 ? "note" : "notes"}. Drag one to move it. Tap it to read it.
+          <h1 className="text-2xl font-semibold tracking-tight text-[#3a2412] sm:text-3xl">Freedom Wall</h1>
+          <p className="text-sm text-[#5a3418]">
+            {posts.length} {posts.length === 1 ? "note" : "notes"}. Drag to move. Tap to read.
           </p>
         </div>
         {user ? (
@@ -440,7 +445,7 @@ export default function FreedomWall() {
               setError(null);
               setComposerOpen(true);
             }}
-            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-white"
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-[#142033] px-4 text-sm font-semibold text-white"
           >
             <PenLine className="h-4 w-4" />
             Pin
@@ -449,18 +454,18 @@ export default function FreedomWall() {
       </div>
 
       {isVoteFeatureAvailable ? (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <p className="text-sm font-semibold text-[var(--muted)]">
-            Clear votes {clearVoteCount} of {CLEAR_VOTE_TARGET}
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 px-4">
+          <p className="text-xs font-semibold text-[#5a3418]">
+            Clear votes {clearVoteCount}/{CLEAR_VOTE_TARGET}
           </p>
-          <div className="h-1.5 w-28 overflow-hidden rounded-full bg-[var(--quiet)]">
-            <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${clearProgress}%` }} />
+          <div className="h-1.5 w-24 overflow-hidden rounded-full bg-[#7a4e2d]/25">
+            <div className="h-full rounded-full bg-[#142033]" style={{ width: `${clearProgress}%` }} />
           </div>
           <button
             type="button"
             onClick={handleVoteToClear}
             disabled={isVoting || hasVotedToClear || !user}
-            className="min-h-9 rounded-full border border-[var(--line)] px-3 text-sm font-semibold disabled:opacity-60"
+            className="min-h-8 rounded-full border border-[#5a3418]/30 bg-white/40 px-3 text-xs font-semibold text-[#3a2412] disabled:opacity-60"
           >
             {hasVotedToClear ? "Vote counted" : isVoting ? "Sending" : "Vote to clear"}
           </button>
@@ -469,21 +474,17 @@ export default function FreedomWall() {
               type="button"
               onClick={handleAdminClearAll}
               disabled={isClearing || posts.length === 0}
-              className="min-h-9 rounded-full bg-[#9f2d3a] px-3 text-sm font-semibold text-white disabled:opacity-60"
+              className="min-h-8 rounded-full bg-[#9f2d3a] px-3 text-xs font-semibold text-white disabled:opacity-60"
             >
               {isClearing ? "Clearing" : "Clear wall"}
             </button>
           ) : null}
         </div>
       ) : null}
-      {voteError ? <p className="text-sm text-[#9f2d3a]">{voteError}</p> : null}
-      {error ? <p className="text-sm text-[#9f2d3a]">{error}</p> : null}
+      {voteError ? <p className="px-4 pt-2 text-sm text-[#9f2d3a]">{voteError}</p> : null}
+      {error ? <p className="px-4 pt-2 text-sm text-[#9f2d3a]">{error}</p> : null}
 
-      <div
-        ref={boardRef}
-        className="relative min-h-0 flex-1 overflow-hidden rounded-[1.5rem] border-[12px] border-[#7a4e2d] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)]"
-        style={corkStyle}
-      >
+      <div ref={boardRef} className="relative min-h-0 flex-1 overflow-hidden">
         {isLoading ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[#5a3418]" />
@@ -494,7 +495,7 @@ export default function FreedomWall() {
           <div className="absolute inset-0 flex items-center justify-center p-6">
             <div className="max-w-xs rounded-2xl bg-white/90 px-6 py-6 text-center text-[#5a3418]">
               <p className="text-lg font-semibold">The wall is open</p>
-              <p className="mt-1 text-sm leading-relaxed">Pin the first note. It can have your name, or none at all.</p>
+              <p className="mt-1 text-sm leading-relaxed">Pin the first note. Your name stays on it unless you choose anonymous.</p>
             </div>
           </div>
         ) : null}
@@ -512,7 +513,7 @@ export default function FreedomWall() {
               onPointerMove={onNotePointerMove}
               onPointerUp={(event) => onNotePointerUp(event, post)}
               onPointerCancel={(event) => onNotePointerUp(event, post)}
-              className={`absolute flex w-[clamp(12.5rem,54%,16.5rem)] touch-none select-none flex-col rounded-[2px] p-4 text-left shadow-[0_14px_24px_rgba(70,36,12,0.24)] ${
+              className={`absolute flex w-[clamp(7.25rem,30vw,10rem)] touch-none select-none flex-col rounded-[2px] p-3 text-left shadow-[0_10px_16px_rgba(70,36,12,0.22)] ${
                 dragging ? "z-30 scale-[1.03] cursor-grabbing" : "z-10 cursor-grab"
               }`}
               style={{
@@ -520,11 +521,11 @@ export default function FreedomWall() {
                 left: `${post.x_pos}%`,
                 backgroundColor: getPostColor(post),
                 transform: `translate(-50%, -50%) rotate(${dragging ? 0 : rotate}deg)`,
-                minHeight: "11.5rem",
+                minHeight: "7.25rem",
               }}
             >
-              <span className="absolute left-1/2 top-2 h-3.5 w-3.5 -translate-x-1/2 rounded-full border border-red-700 bg-red-500 shadow-sm" />
-              <span className="mt-4 line-clamp-8 font-[family-name:var(--font-note)] text-[1.55rem] leading-[1.05] text-[#142033] sm:text-[1.7rem]">
+              <span className="absolute left-1/2 top-1.5 h-2.5 w-2.5 -translate-x-1/2 rounded-full border border-red-700 bg-red-500 shadow-sm" />
+              <span className="mt-3 line-clamp-6 font-[family-name:var(--font-note)] text-[1.2rem] leading-tight text-[#142033]">
                 {post.content}
               </span>
               <span className="mt-auto truncate pt-3 text-xs font-semibold text-[#142033]/70">
@@ -546,7 +547,7 @@ export default function FreedomWall() {
                 <div className="mb-4 flex items-start justify-between gap-4">
                   <div>
                     <h2 className="text-xl font-semibold">Pin a note</h2>
-                    <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">Short thoughts work best. Unsigned notes are the usual way.</p>
+                    <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">Your name shows unless you mark it anonymous.</p>
                   </div>
                   <button type="button" onClick={() => setComposerOpen(false)} className="rounded-full p-2 text-[var(--muted)]" aria-label="Close">
                     <X className="h-5 w-5" />
@@ -579,7 +580,7 @@ export default function FreedomWall() {
                 </div>
                 <label className="mt-4 flex items-center gap-2 text-sm font-medium">
                   <input type="checkbox" className="h-4 w-4" checked={isAnonymous} onChange={(event) => setIsAnonymous(event.target.checked)} />
-                  Leave it unsigned
+                  Anonymous
                 </label>
                 <div className="mt-5 flex gap-2">
                   <button type="button" onClick={() => setComposerOpen(false)} className="min-h-11 flex-1 rounded-xl border border-[var(--line)] text-sm font-semibold">
@@ -604,8 +605,8 @@ export default function FreedomWall() {
                 style={{ backgroundColor: getPostColor(selectedPost) }}
               >
                 <div className="mb-4 flex justify-end gap-2">
-                  {profile?.role === "admin" ? (
-                    <button type="button" onClick={() => handleDelete(selectedPost.id)} className="rounded-full bg-black/10 p-2" aria-label="Delete note">
+                  {profile?.role === "admin" || selectedPost.author_id === user?.id ? (
+                    <button type="button" onClick={() => handleDelete(selectedPost.id)} className="rounded-full bg-black/10 p-2" aria-label="Erase note">
                       <Trash2 className="h-5 w-5" />
                     </button>
                   ) : null}
