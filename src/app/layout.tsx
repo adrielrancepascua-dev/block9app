@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Caveat, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/SupabaseAuthContext";
 import Navbar from "@/components/Navbar";
 import { Toaster } from 'sonner';
 import EnvWarning from '@/components/EnvWarning';
+import NameGate from "@/components/NameGate";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,6 +14,11 @@ const geistSans = Geist({
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+const noteHand = Caveat({
+  variable: "--font-note",
   subsets: ["latin"],
 });
 
@@ -41,12 +47,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${noteHand.variable} font-sans antialiased`}>
         <AuthProvider>
-          <Navbar />
-          {process.env.NODE_ENV !== "production" && <EnvWarning />}
-          {children}
-          <Toaster position="top-center" richColors />
+          <NameGate>
+            <Navbar />
+            {process.env.NODE_ENV !== "production" && <EnvWarning />}
+            {children}
+            <Toaster position="top-center" richColors />
+          </NameGate>
         </AuthProvider>
       </body>
     </html>

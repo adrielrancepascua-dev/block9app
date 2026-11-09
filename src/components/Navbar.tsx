@@ -17,7 +17,7 @@ export default function Navbar() {
   const pathname = usePathname();
   const { user, profile } = useAuth();
 
-  if (pathname === "/login" || pathname === "/register") {
+  if (pathname === "/login" || pathname === "/register" || pathname === "/welcome" || (user && profile && profile.name_confirmed !== true)) {
     return null;
   }
 
@@ -72,51 +72,49 @@ export default function Navbar() {
 
   return (
     <>
-      {/* Mobile Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200/80 bg-white/90 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl md:hidden dark:border-white/10 dark:bg-[#07111f]/90">
-        <div className="flex items-stretch justify-around gap-0.5 px-1 pt-1.5">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-medium transition active:scale-[0.98] ${
-                isActive(item.href)
-                  ? "bg-[#1d4f91]/12 text-[#1d4f91] dark:bg-sky-300/15 dark:text-sky-200"
-                  : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
-              }`}
-              title={item.label}
-            >
-              {item.icon}
-              <span className="max-w-full truncate">{item.shortLabel}</span>
-            </Link>
-          ))}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#e7e0d8] bg-[#f7f4ef]/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_rgba(20,32,51,0.08)] backdrop-blur-md md:hidden">
+        <div className="mx-auto flex max-w-lg items-stretch justify-around px-2 pt-1.5">
+          {navItems.map((item) => {
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="flex min-h-[60px] min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-1.5 text-[11px] font-semibold active:scale-[0.98]"
+                title={item.label}
+              >
+                <span
+                  className={`flex h-8 w-8 items-center justify-center rounded-full transition ${
+                    active ? "bg-[#1d4f91] text-white shadow-sm" : "text-[#5c6b7a]"
+                  }`}
+                >
+                  {item.icon}
+                </span>
+                <span className={`max-w-full truncate ${active ? "text-[#1d4f91]" : "text-[#5c6b7a]"}`}>
+                  {item.shortLabel}
+                </span>
+              </Link>
+            );
+          })}
         </div>
       </nav>
 
-      {/* Desktop Top Navigation */}
-      <nav className="sticky top-0 z-40 hidden border-b border-slate-200/80 bg-white/85 backdrop-blur-xl md:block dark:border-white/10 dark:bg-[#07111f]/85">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
-            {/* Left: Logo/Brand */}
-            <div className="flex items-center gap-3">
-              <Link
-                href="/"
-                className="text-xl font-bold text-slate-900 dark:text-white"
-              >
-                Block9
-              </Link>
-            </div>
+      <nav className="sticky top-0 z-40 hidden border-b border-[#e7e0d8] bg-[#f7f4ef]/92 backdrop-blur-md md:block">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between gap-6">
+            <Link href="/" className="text-xl font-semibold tracking-tight text-[#142033]">
+              Block 9
+            </Link>
 
-            {/* Center: Navigation Items */}
             <div className="flex items-center gap-1">
               {navItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-semibold transition ${
                     isActive(item.href)
-                      ? "bg-blue-500/30 text-blue-600 dark:text-blue-300"
-                      : "text-slate-600 hover:bg-white/20 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+                      ? "bg-[#1d4f91] text-white"
+                      : "text-[#4d5d73] hover:bg-white"
                   }`}
                 >
                   {item.icon}
@@ -125,32 +123,26 @@ export default function Navbar() {
               ))}
             </div>
 
-            {/* Right: User Profile Info */}
             <div className="flex items-center gap-3">
               {profile?.avatar_url ? (
                 <img
                   src={profile.avatar_url}
-                  alt="Profile"
-                  className="h-9 w-9 rounded-full border border-white/30 object-cover"
+                  alt=""
+                  className="h-9 w-9 rounded-full border border-[#e7e0d8] object-cover"
                 />
               ) : (
-                <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/30 bg-blue-600/80 text-sm font-bold text-white">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1d4f91] text-sm font-semibold text-white">
                   {(profile?.name?.trim()?.charAt(0) || "S").toUpperCase()}
                 </div>
               )}
               <div className="text-right">
-                <p className="text-sm font-medium text-slate-900 dark:text-white">
-                  {profile?.name || "Student"}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {profile?.role === "admin" ? "Admin" : "Student"}
-                </p>
+                <p className="text-sm font-semibold text-[#142033]">{profile?.name || "Student"}</p>
+                <p className="text-xs text-[#5c6b7a]">{profile?.role === "admin" ? "Admin" : "Student"}</p>
               </div>
             </div>
           </div>
         </div>
       </nav>
-
     </>
   );
 }

@@ -42,8 +42,8 @@ export default function ChatPage() {
       />
       <div className="fixed inset-0 -z-10 bg-slate-900/35" />
 
-      <div className="mx-auto w-full max-w-screen-2xl px-2 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-2 md:px-4 md:pb-4 md:pt-4">
-        <div className="h-[calc(100dvh-6.9rem)] md:h-[calc(100dvh-6.1rem)]">
+      <div className="mx-auto w-full max-w-screen-2xl px-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] pt-5 md:px-6 md:pb-6 md:pt-6">
+        <div className="h-[calc(100dvh-8.75rem)] md:h-[calc(100dvh-7.25rem)]">
           <ChatRoom />
         </div>
       </div>

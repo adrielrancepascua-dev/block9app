@@ -32,16 +32,16 @@ export default function FreedomWallPage() {
   }
 
   return (
-    <ProfileLayout>
+    <ProfileLayout surface="paper" containerClassName="max-w-6xl">
       <div className="w-full">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-800 drop-shadow-md dark:text-white">
+        <header className="mb-6 sm:mb-8">
+          <h1 className="text-[1.85rem] font-semibold tracking-tight text-[#142033] sm:text-4xl">
             Freedom Wall
           </h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-200">
-            Share your thoughts with the community. Post anonymously if you prefer!
+          <p className="mt-2 max-w-xl text-base leading-relaxed text-[#4d5d73]">
+            A cork board for the block. Leave a short note, with your name or without it.
           </p>
-        </div>
+        </header>
         <FreedomWall />
       </div>
     </ProfileLayout>

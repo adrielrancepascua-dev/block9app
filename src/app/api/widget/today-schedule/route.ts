@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { linkedSupabaseAnonKey, linkedSupabaseUrl } from "@/utils/linked-supabase";
+import { resolveSupabasePublic } from "@/utils/linked-supabase";
 
 interface WidgetScheduleRow {
   id: string;
@@ -48,8 +48,7 @@ const getManilaDayRange = () => {
 };
 
 export async function GET(request: Request) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || linkedSupabaseUrl;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || linkedSupabaseAnonKey;
+  const { url: supabaseUrl, anonKey: supabaseKey } = resolveSupabasePublic();
   const requiredWidgetKey = process.env.WIDGET_API_KEY;
 
   if (!supabaseUrl || !supabaseKey) {

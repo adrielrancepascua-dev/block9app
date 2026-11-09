@@ -379,30 +379,30 @@ export default function Home() {
   }
 
   return (
-    <ProfileLayout>
-      <div className="w-full font-[family-name:var(--font-geist-sans)]">
-        <div className="mb-5 flex flex-col gap-3 sm:mb-7 sm:flex-row sm:items-center sm:justify-between">
+    <ProfileLayout surface="paper">
+      <div className="w-full">
+        <div className="mb-8 flex flex-col gap-5 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800 drop-shadow-md sm:text-3xl dark:text-white">
+            <h1 className="text-[1.85rem] font-semibold tracking-tight text-[#142033] sm:text-4xl">
               Hi, {profile?.name || "Student"}
             </h1>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-200">
-              Tap or click a schedule to view room, time, and attendance status.
+            <p className="mt-2 max-w-md text-base leading-relaxed text-[#4d5d73]">
+              Tap a day to see the room, the time, and who is going.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
             {profile?.role === "admin" && (
               <button
                 onClick={() => router.push("/admin")}
-                className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow hover:bg-blue-700"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#1d4f91] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2460ad] active:scale-[0.98]"
               >
-                Manage Schedules
+                Manage schedules
               </button>
             )}
             <button
               onClick={signOut}
-              className="rounded-lg border border-slate-300 bg-transparent px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/20 dark:text-white dark:hover:bg-white/10"
+              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#d9d1c7] bg-white px-4 text-sm font-semibold text-[#142033] shadow-sm transition hover:bg-[#f3eee8] active:scale-[0.98]"
             >
               Sign out
             </button>
@@ -415,45 +415,41 @@ export default function Home() {
           </div>
         )}
 
-        <div className="rounded-xl border border-slate-300/70 bg-white/80 p-3 shadow-lg backdrop-blur-md dark:border-white/20 dark:bg-slate-900/70 sm:p-4">
-          <div className="mb-5 grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:mb-6">
-            <div className="flex items-center gap-2 justify-self-start">
+        <div className="rounded-[1.4rem] border border-[#e6dfd6] bg-white p-4 shadow-[0_1px_2px_rgba(20,32,51,0.04)] sm:p-6">
+          <div className="mb-6 flex flex-col gap-4 sm:mb-7 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-center text-[1.7rem] font-semibold tracking-tight text-[#142033] sm:text-left sm:text-3xl">
+              {monthTitle}
+            </h2>
+            <div className="flex items-center justify-center gap-2 sm:justify-end">
               <button
                 type="button"
                 onClick={goToPreviousMonth}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-white/20 dark:text-white dark:hover:bg-white/10"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#d9d1c7] bg-[#f7f4ef] px-4 text-sm font-semibold text-[#142033] transition hover:bg-white active:scale-[0.98]"
               >
                 Prev
               </button>
               <button
                 type="button"
                 onClick={goToCurrentMonth}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-white/20 dark:text-white dark:hover:bg-white/10"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#d9d1c7] bg-[#f7f4ef] px-4 text-sm font-semibold text-[#142033] transition hover:bg-white active:scale-[0.98]"
               >
                 Today
               </button>
-            </div>
-
-            <h2 className="px-2 text-center text-xl font-extrabold tracking-tight text-slate-900 sm:text-3xl dark:text-white">
-              {monthTitle}
-            </h2>
-
-            <div className="justify-self-end">
               <button
                 type="button"
                 onClick={goToNextMonth}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-white/20 dark:text-white dark:hover:bg-white/10"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#d9d1c7] bg-[#f7f4ef] px-4 text-sm font-semibold text-[#142033] transition hover:bg-white active:scale-[0.98]"
               >
                 Next
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-7 border border-slate-300/70 dark:border-white/15">
+          <div className="grid grid-cols-7 overflow-hidden rounded-2xl border border-[#e6dfd6]">
             {WEEKDAYS.map((weekday) => (
               <div
                 key={weekday}
-                className="min-h-9 border-b border-r border-slate-300/55 bg-slate-100/90 px-1 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600 last:border-r-0 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 sm:min-h-11 sm:px-2 sm:text-xs"
+                className="min-h-11 border-b border-r border-[#e6dfd6] bg-[#f3eee8] px-1 py-2.5 text-center text-[11px] font-semibold text-[#5c6b7a] last:border-r-0 sm:text-xs"
               >
                 {weekday}
               </div>
@@ -467,18 +463,18 @@ export default function Home() {
               return (
                 <div
                   key={cell.key}
-                  className={`min-h-24 border-b border-r border-slate-300/50 p-1.5 sm:min-h-32 sm:p-2 ${
+                  className={`min-h-[4.75rem] border-b border-r border-[#efe8e0] p-1.5 sm:min-h-32 sm:p-2 ${
                     isLastCol ? "border-r-0" : ""
-                  } ${cell.inCurrentMonth ? "bg-white/70 dark:bg-slate-900/35" : "bg-slate-100/75 dark:bg-slate-900/15"} dark:border-white/10`}
+                  } ${cell.inCurrentMonth ? "bg-white" : "bg-[#f7f4ef]"}`}
                 >
-                  <div className="mb-1 flex items-center justify-between">
+                  <div className="mb-1.5 flex items-center justify-between">
                     <span
-                      className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-xs font-semibold sm:h-7 sm:min-w-7 ${
+                      className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-xs font-semibold ${
                         isToday
-                          ? "bg-blue-600 text-white"
+                          ? "bg-[#1d4f91] text-white"
                           : cell.inCurrentMonth
-                          ? "text-slate-700 dark:text-slate-200"
-                          : "text-slate-400 dark:text-slate-500"
+                          ? "text-[#142033]"
+                          : "text-[#9aa6b2]"
                       }`}
                     >
                       {cell.date.getDate()}
@@ -525,7 +521,7 @@ export default function Home() {
           </div>
 
           {!isFetching && schedules.length === 0 && (
-            <div className="mt-4 rounded-lg border border-slate-200 bg-white/60 p-6 text-center text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+            <div className="mt-5 rounded-2xl border border-[#e6dfd6] bg-[#f7f4ef] px-6 py-8 text-center text-[#4d5d73]">
               No schedules yet for this month.
             </div>
           )}
