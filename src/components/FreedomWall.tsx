@@ -4,8 +4,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/context/SupabaseAuthContext';
 import { supabase } from '@/utils/supabase';
-import { motion, AnimatePresence, type PanInfo } from 'framer-motion';
-import { Maximize2, Minimize2, Trash2, X } from 'lucide-react';
+import { motion, AnimatePresence, useReducedMotion, type PanInfo } from 'framer-motion';
+import { Maximize2, Minimize2, PenLine, Trash2, X } from 'lucide-react';
 
 interface ProfileData {
   name: string;
@@ -21,17 +21,11 @@ interface Post {
   created_at: string;
   x_pos: number;
   y_pos: number;
+  note_color?: string | null;
   profiles?: ProfileData;
 }
 
-const PASTEL_COLORS = [
-  '#fdfd96', // yellow
-  '#ffb7b2', // pink/red
-  '#ffdac1', // peach
-  '#e2f0cb', // light green
-  '#b5ead7', // green
-  '#c7ceea', // blue/purple
-];
+const NOTE_COLORS = ['#ffe56a', '#ffc1cc', '#ffd7b5', '#d7f5c8', '#c9e4ff', '#e4d4ff'];
 
 const CLEAR_VOTE_TARGET = 35;
 
@@ -39,7 +33,10 @@ export default function FreedomWall() {
   const { user, profile } = useAuth();
 
   const [content, setContent] = useState('');
-  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [isAnonymous, setIsAnonymous] = useState(true);
+  const [noteColor, setNoteColor] = useState(NOTE_COLORS[0]);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const reduceMotion = useReducedMotion();
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -69,12 +66,13 @@ export default function FreedomWall() {
   });
 
   const getPostColor = (post: Post) => {
+    if (post.note_color) return post.note_color;
     if (post.profiles?.custom_bg_url && post.profiles.custom_bg_url.startsWith('#')) {
       return post.profiles.custom_bg_url;
     }
     let charCode = 0;
     if (post.id) charCode = post.id.charCodeAt(post.id.length - 1) || 0;
-    return PASTEL_COLORS[charCode % PASTEL_COLORS.length];
+    return NOTE_COLORS[charCode % NOTE_COLORS.length];
   };
 
   const fetchClearVotes = async () => {
@@ -128,6 +126,7 @@ export default function FreedomWall() {
       const postsWithAuthors = (data || []).map((post: any) => ({
         ...post,
         author_name: post.profiles?.name || 'Unknown User',
+        note_color: post.note_color,
         x_pos: post.x_pos ?? Math.floor(Math.random() * 70) + 10,
         y_pos: post.y_pos ?? Math.floor(Math.random() * 70) + 10,
       }));
@@ -227,6 +226,7 @@ export default function FreedomWall() {
             author_name: profileData?.name || 'Unknown User',
             is_anonymous: newPost.is_anonymous,
             created_at: newPost.created_at,
+            note_color: newPost.note_color,
             x_pos: newPost.x_pos ?? Math.floor(Math.random() * 70) + 10,
             y_pos: newPost.y_pos ?? Math.floor(Math.random() * 70) + 10,
             profiles: profileData ? { name: profileData.name, custom_bg_url: profileData.custom_bg_url } : undefined,
@@ -319,6 +319,7 @@ export default function FreedomWall() {
         author_name: profile?.name || 'Loading...',
         is_anonymous: currentIsAnonymous,
         created_at: createdAt,
+        note_color: noteColor,
         x_pos: placedX,
         y_pos: placedY,
         profiles: { name: profile?.name || 'Loading...', custom_bg_url: profile?.custom_bg_url || undefined },
@@ -327,7 +328,8 @@ export default function FreedomWall() {
       // optimistic update
       setPosts((prev) => [optimisticPost, ...prev]);
       setContent('');
-      setIsAnonymous(false);
+      setIsAnonymous(true);
+      setComposerOpen(false);
 
       const { data, error: insertError } = await supabase
         .from('freedom_wall')
@@ -335,6 +337,7 @@ export default function FreedomWall() {
           content: currentContent,
           author_id: user.id,
           is_anonymous: currentIsAnonymous,
+          note_color: noteColor,
           created_at: createdAt,
           x_pos: placedX,
           y_pos: placedY,
@@ -351,6 +354,9 @@ export default function FreedomWall() {
     } catch (err: any) {
       console.error('Error posting:', err?.message || err);
       setError('Failed to post. Please try again.');
+      setContent(currentContent);
+      setIsAnonymous(currentIsAnonymous);
+      setComposerOpen(true);
       setPosts((prev) => prev.filter((post) => post.id !== optimisticId));
     } finally {
       setIsSubmitting(false);
@@ -562,23 +568,30 @@ export default function FreedomWall() {
     );
   }
 
-  const boardPanelClassName =
-    "overflow-hidden bg-[url('https://www.transparenttextures.com/patterns/cork-board.png')] bg-[#d4a88c]";
+  const corkStyle: React.CSSProperties = {
+    backgroundColor: "#c9894a",
+    backgroundImage:
+      "radial-gradient(circle at 18% 22%, rgba(255,236,210,0.45) 0 1px, transparent 1.5px), radial-gradient(circle at 74% 68%, rgba(92,48,16,0.25) 0 1px, transparent 1.5px), linear-gradient(165deg, #e7bc86 0%, #d09255 46%, #c07a3d 100%)",
+    backgroundSize: "17px 17px, 23px 23px, auto",
+  };
 
   const renderBoard = (expanded: boolean) => (
     <div
-      className={expanded
-        ? `${boardPanelClassName} absolute inset-x-0 top-0 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] rounded-none border-y-4 border-amber-800/80 shadow-2xl`
-        : `${boardPanelClassName} relative mb-4 min-h-[460px] flex-1 rounded-xl border-4 border-amber-800/80 shadow-inner sm:mb-8 sm:min-h-[400px] sm:border-8`}
+      className={
+        expanded
+          ? "absolute inset-x-0 top-0 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] overflow-hidden border-y-[10px] border-[#7a4e2d] shadow-2xl"
+          : "relative min-h-[68dvh] overflow-hidden rounded-[1.35rem] border-[10px] border-[#7a4e2d] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28),0_16px_40px_rgba(90,48,16,0.18)] sm:min-h-[640px]"
+      }
+      style={corkStyle}
     >
       {!expanded && (
         <button
           type="button"
           onClick={() => setIsMobileBoardExpanded(true)}
-          className="absolute right-3 top-3 z-30 inline-flex items-center gap-1 rounded-md bg-black/45 px-2.5 py-1.5 text-xs font-semibold text-white backdrop-blur-sm sm:hidden"
+          className="absolute right-3 top-3 z-30 inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[#142033]/75 px-3 text-xs font-semibold text-white sm:hidden"
         >
           <Maximize2 className="h-3.5 w-3.5" />
-          Expand
+          Full wall
         </button>
       )}
 
@@ -586,20 +599,18 @@ export default function FreedomWall() {
         <button
           type="button"
           onClick={() => setIsMobileBoardExpanded(false)}
-          className="absolute right-3 top-[calc(0.5rem+env(safe-area-inset-top))] z-30 inline-flex items-center gap-1 rounded-md bg-black/45 px-2.5 py-1.5 text-xs font-semibold text-white backdrop-blur-sm hover:bg-black/55 sm:hidden"
-          aria-label="Collapse wall"
+          className="absolute right-3 top-[calc(0.75rem+env(safe-area-inset-top))] z-30 inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[#142033]/75 px-3 text-xs font-semibold text-white sm:hidden"
+          aria-label="Close the full wall"
         >
           <Minimize2 className="h-3.5 w-3.5" />
-          Collapse
+          Close
         </button>
       )}
 
       <div
         ref={boardViewportRef}
         className={`absolute inset-0 overflow-auto ${
-          expanded
-            ? `${isPanningBoard ? 'cursor-grabbing' : 'cursor-grab'} touch-none`
-            : ''
+          expanded ? `${isPanningBoard ? "cursor-grabbing" : "cursor-grab"} touch-none` : ""
         }`}
         onPointerDown={handleBoardViewportPointerDown}
         onPointerMove={handleBoardViewportPointerMove}
@@ -609,14 +620,11 @@ export default function FreedomWall() {
         <div
           ref={boardRef}
           className={`relative ${
-            expanded
-              ? 'h-[155%] min-h-[760px] w-[165%] min-w-[760px]'
-              : 'h-full w-full'
+            expanded ? "h-[155%] min-h-[760px] w-[165%] min-w-[760px]" : "h-full min-h-[68dvh] w-full sm:min-h-[640px]"
           }`}
         >
           {posts.map((post) => {
-            let rotateDeg = 0;
-            if (post.id) rotateDeg = (post.id.charCodeAt(0) % 10) - 5;
+            const rotateDeg = post.id ? (post.id.charCodeAt(0) % 7) - 3 : 0;
             return (
               <motion.div
                 layoutId={`post-${post.id}`}
@@ -624,7 +632,6 @@ export default function FreedomWall() {
                 data-note-card="true"
                 data-note-id={post.id}
                 onClick={() => {
-                  // Ignore clicks that immediately follow a drag to avoid opening the note unintentionally.
                   if (lastInteractionWasDragRef.current) return;
                   setSelectedPost(post);
                 }}
@@ -638,35 +645,33 @@ export default function FreedomWall() {
                   handleNoteDragEnd(post.id, { x: post.x_pos, y: post.y_pos }, event, info);
                   clearDragOpenBlock();
                 }}
-                className="group absolute flex h-28 w-28 cursor-pointer flex-col overflow-hidden p-2.5 shadow-md transition-shadow hover:shadow-xl sm:h-32 sm:w-32 sm:p-3"
+                className="absolute flex h-36 w-36 cursor-pointer flex-col overflow-hidden rounded-[2px] p-3 shadow-[0_10px_18px_rgba(70,36,12,0.22)] sm:h-40 sm:w-40 sm:p-3.5"
                 style={{
                   top: `${post.y_pos}%`,
                   left: `${post.x_pos}%`,
                   backgroundColor: getPostColor(post),
                   rotate: `${rotateDeg}deg`,
                 }}
-                whileHover={{ scale: 1.05, zIndex: 10 }}
+                whileHover={reduceMotion ? undefined : { scale: 1.04, zIndex: 10 }}
               >
-                <div className="absolute top-1 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-red-500 shadow-sm border border-red-700 z-10">
-                  <div className="w-1 h-1 bg-white/60 rounded-full absolute top-[2px] left-[2px]" />
+                <div className="absolute left-1/2 top-2 h-3 w-3 -translate-x-1/2 rounded-full border border-red-700 bg-red-500 shadow-sm">
+                  <div className="absolute left-[2px] top-[2px] h-1 w-1 rounded-full bg-white/70" />
                 </div>
-
-                <p className="text-black/80 mt-3 text-xs line-clamp-4 font-mono font-medium leading-snug whitespace-pre-wrap">
+                <p className="mt-4 line-clamp-5 font-[family-name:var(--font-note)] text-[1.2rem] leading-tight text-[#142033]">
                   {post.content}
                 </p>
-
-                <div className="absolute bottom-0 left-0 right-0 bg-black/5 p-1 text-[10px] text-black/60 truncate font-semibold border-t border-black/10">
-                  {post.is_anonymous ? 'Anonymous' : post.author_name}
-                </div>
+                <p className="mt-auto truncate pt-2 text-[11px] font-semibold text-[#142033]/70">
+                  {post.is_anonymous ? "Anonymous" : post.author_name}
+                </p>
               </motion.div>
             );
           })}
 
           {posts.length === 0 && !isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center p-4">
-              <div className="text-center rounded-xl bg-white/70 backdrop-blur-sm p-6 text-amber-900 border border-white/60 shadow-sm">
-                <p className="text-lg font-bold">The whiteboard is empty</p>
-                <p className="text-sm mt-1">Be the first to pin a note!</p>
+            <div className="absolute inset-0 flex items-center justify-center p-6">
+              <div className="max-w-xs rounded-2xl bg-white/85 px-6 py-6 text-center text-[#5a3418] shadow-sm">
+                <p className="text-lg font-semibold">The wall is open</p>
+                <p className="mt-1 text-sm leading-relaxed">Pin the first note. It can have your name, or none at all.</p>
               </div>
             </div>
           )}
@@ -676,119 +681,172 @@ export default function FreedomWall() {
   );
 
   return (
-    <div className="flex min-h-[calc(100dvh-11rem)] flex-col">
-      {user && (
-        <div className="relative z-20 mb-4 shrink-0 overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:mb-6 sm:rounded-2xl">
-          <form onSubmit={handleSubmit} className="p-4 sm:p-6">
-            {isRefreshing && (
-              <p className="mb-3 text-xs text-slate-500">Refreshing posts...</p>
-            )}
-            <div className="mb-4">
-              <label htmlFor="content" className="sr-only">What's on your mind?</label>
-              <textarea
-                id="content"
-                rows={3}
-                placeholder="What's on your mind? (Pin it to the board!)"
-                className="w-full resize-none rounded-lg border border-slate-300 p-3 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-
-            {error && <p className="mb-4 text-sm text-red-500">{error}</p>}
-
-            {isVoteFeatureAvailable && (
-              <div className="mb-4 rounded-lg border border-slate-300 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-900/60">
-                <div className="flex items-center justify-between text-sm font-semibold text-slate-700 dark:text-slate-200">
-                  <span>Clear Wall Vote Progress</span>
-                  <span>{clearVoteCount}/{CLEAR_VOTE_TARGET}</span>
-                </div>
-
-                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
-                  <div
-                    className="h-full rounded-full bg-emerald-500 transition-all"
-                    style={{ width: `${clearProgress}%` }}
-                  />
-                </div>
-
-                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  Vote progress is shown for transparency. Admins can clear the wall anytime.
-                </p>
-
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                  <button
-                    type="button"
-                    onClick={handleVoteToClear}
-                    disabled={isVoting || hasVotedToClear || !user}
-                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                  >
-                    {hasVotedToClear ? 'You already voted' : isVoting ? 'Submitting vote...' : 'Vote to clear wall'}
-                  </button>
-
-                  {profile?.role === 'admin' && (
-                    <button
-                      type="button"
-                      onClick={handleAdminClearAll}
-                      disabled={isClearing || posts.length === 0}
-                      className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {isClearing ? 'Clearing wall...' : 'Admin clear all now'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {!isVoteFeatureAvailable && (
-              <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                Vote-to-clear is temporarily unavailable.
-              </div>
-            )}
-
-            {voteError && <p className="mb-4 text-sm text-red-500">{voteError}</p>}
-
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <label className="flex items-center space-x-2 text-sm text-slate-700 dark:text-slate-300">
-                <input
-                  type="checkbox"
-                  className="rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-                  checked={isAnonymous}
-                  onChange={(e) => setIsAnonymous(e.target.checked)}
-                  disabled={isSubmitting}
-                />
-                <span>Post anonymously</span>
-              </label>
-
-              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full sm:w-auto rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-blue-400"
-                >
-                  {isSubmitting ? 'Pinning...' : 'Pin Note'}
-                </button>
-              </div>
-            </div>
-
-            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-              New notes are auto-placed. Drag any note to reposition it.
-            </p>
-          </form>
-        </div>
-      )}
+    <div className="flex flex-col gap-5">
+      {isRefreshing ? <p className="text-sm text-[#5c6b7a]">Refreshing notes</p> : null}
 
       <div>
         {!isMobileBoardExpanded && renderBoard(false)}
-        {isMounted && isMobileBoardExpanded &&
+        {isMounted &&
+          isMobileBoardExpanded &&
           createPortal(
             <div className="fixed inset-0 z-[100] sm:hidden">
-              <div className="absolute inset-0 bg-slate-900/55 backdrop-blur-md" />
+              <div className="absolute inset-0 bg-[#142033]/55" />
               {renderBoard(true)}
             </div>,
             document.body
           )}
       </div>
+
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm leading-relaxed text-[#4d5d73]">
+          {posts.length} {posts.length === 1 ? "note" : "notes"} on the wall. Drag a note to move it.
+        </p>
+        {user ? (
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setComposerOpen(true);
+            }}
+            className="fixed inset-x-5 bottom-[calc(5.35rem+env(safe-area-inset-bottom))] z-30 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#1d4f91] px-4 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(29,79,145,0.28)] transition hover:bg-[#2460ad] active:scale-[0.98] sm:static sm:inset-auto sm:z-auto sm:w-auto sm:shadow-sm"
+          >
+            <PenLine className="h-4 w-4" />
+            Pin a note
+          </button>
+        ) : null}
+      </div>
+
+      {isVoteFeatureAvailable ? (
+        <div className="mb-16 flex flex-col gap-4 rounded-2xl border border-[#e6dfd6] bg-white px-4 py-4 sm:mb-0 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div>
+            <p className="text-sm font-semibold text-[#142033]">
+              Clear votes, {clearVoteCount} of {CLEAR_VOTE_TARGET}
+            </p>
+            <div className="mt-2 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-[#efe8e0]">
+              <div className="h-full rounded-full bg-[#1d4f91]" style={{ width: `${clearProgress}%` }} />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleVoteToClear}
+              disabled={isVoting || hasVotedToClear || !user}
+              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#d9d1c7] bg-[#f7f4ef] px-4 text-sm font-semibold text-[#142033] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {hasVotedToClear ? "Vote counted" : isVoting ? "Sending vote" : "Vote to clear"}
+            </button>
+            {profile?.role === "admin" ? (
+              <button
+                type="button"
+                onClick={handleAdminClearAll}
+                disabled={isClearing || posts.length === 0}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#9f2d3a] px-4 text-sm font-semibold text-white transition hover:bg-[#872533] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isClearing ? "Clearing" : "Clear wall"}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-[#8a5a22]">Clear votes are unavailable right now.</p>
+      )}
+
+      {voteError ? <p className="text-sm text-[#9f2d3a]">{voteError}</p> : null}
+
+      {composerOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-[120] flex items-end justify-center bg-[#142033]/45 p-0 pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:items-center sm:p-6 sm:pb-6">
+            <button
+              type="button"
+              className="absolute inset-0 cursor-default"
+              aria-label="Close the note composer"
+              onClick={() => setComposerOpen(false)}
+            />
+            <form
+              onSubmit={handleSubmit}
+              className="relative z-10 w-full max-w-lg rounded-t-[1.5rem] border border-[#e6dfd6] bg-[#f7f4ef] p-5 shadow-2xl sm:rounded-[1.5rem] sm:p-6"
+            >
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-[#142033]">Pin a note</h2>
+                  <p className="mt-1 text-sm leading-relaxed text-[#4d5d73]">
+                    Short thoughts work best. Unsigned notes are the usual way.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setComposerOpen(false)}
+                  className="rounded-full p-2 text-[#4d5d73] hover:bg-white"
+                  aria-label="Close"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <label htmlFor="content" className="mb-2 block text-sm font-semibold text-[#142033]">
+                Your note
+              </label>
+              <textarea
+                id="content"
+                rows={4}
+                placeholder="Write it the way you would say it"
+                className="w-full resize-none rounded-2xl border border-[#d9d1c7] bg-white px-4 py-3 text-base text-[#142033] outline-none placeholder:text-[#8b97a6] focus:border-[#1d4f91] focus:ring-2 focus:ring-[#1d4f91]/20"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                disabled={isSubmitting}
+                maxLength={2000}
+              />
+
+              <div className="mt-4 flex flex-wrap gap-2" role="radiogroup" aria-label="Note color">
+                {NOTE_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    role="radio"
+                    aria-checked={noteColor === color}
+                    aria-label={`Note color ${color}`}
+                    onClick={() => setNoteColor(color)}
+                    className={`h-9 w-9 rounded-full border-2 ${
+                      noteColor === color ? "border-[#142033]" : "border-white"
+                    }`}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+
+              <label className="mt-4 flex items-center gap-2 text-sm font-medium text-[#142033]">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-[#d9d1c7] text-[#1d4f91]"
+                  checked={isAnonymous}
+                  onChange={(e) => setIsAnonymous(e.target.checked)}
+                  disabled={isSubmitting}
+                />
+                Leave it unsigned
+              </label>
+
+              {error ? <p className="mt-3 text-sm text-[#9f2d3a]">{error}</p> : null}
+
+              <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setComposerOpen(false)}
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#d9d1c7] bg-white px-4 text-sm font-semibold text-[#142033]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#1d4f91] px-4 text-sm font-semibold text-white disabled:opacity-60"
+                >
+                  {isSubmitting ? "Pinning" : "Pin note"}
+                </button>
+              </div>
+            </form>
+          </div>,
+          document.body
+        )}
 
       <AnimatePresence>
         {selectedPost && (
