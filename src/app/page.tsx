@@ -298,19 +298,21 @@ export default function Home() {
                 >
                   <span
                     className={`flex h-8 w-8 items-center justify-center rounded-full text-[13px] font-semibold ${
-                      isToday
+                      isToday || hasClasses
                         ? "bg-[var(--accent)] text-white"
                         : cell.inCurrentMonth
                         ? "text-[var(--ink)]"
                         : "text-[#9aa6b2]"
-                    } ${selected ? "ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[var(--surface)]" : ""}`}
+                    } ${isToday ? "ring-2 ring-[var(--ink)]" : ""} ${
+                      selected ? "ring-2 ring-[var(--accent-text)] ring-offset-2 ring-offset-[var(--surface)]" : ""
+                    }`}
                   >
                     {cell.date.getDate()}
                   </span>
                   <span className="mt-0.5 flex h-1.5 items-center gap-0.5">
                     {hasClasses
                       ? daySchedules.slice(0, 3).map((schedule) => (
-                          <span key={schedule.id} className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
+                          <span key={schedule.id} className="h-1.5 w-1.5 rounded-full bg-[var(--accent-text)]" />
                         ))
                       : null}
                   </span>
