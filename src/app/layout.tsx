@@ -54,8 +54,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f4f7fb" },
-    { media: "(prefers-color-scheme: dark)", color: "#07111f" },
+    { media: "(prefers-color-scheme: light)", color: "#f7f4ef" },
+    { media: "(prefers-color-scheme: dark)", color: "#101c2e" },
   ],
 };
 
@@ -68,7 +68,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} ${noteHand.variable} font-sans antialiased`}>
         <Script id="block9-theme" strategy="beforeInteractive">
-          {`(function(){try{var t=localStorage.getItem("block9-theme")||"system";var d=t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);document.documentElement.style.colorScheme=d?"dark":"light";var c=d?"#07111f":"#f4f7fb";document.querySelectorAll('meta[name="theme-color"]').forEach(function(n){n.setAttribute("content",c);});}catch(e){}})();`}
+          {`(function(){try{var t=localStorage.getItem("block9-theme")||"system";var d=t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);document.documentElement.style.colorScheme=d?"dark":"light";var c=d?"#101c2e":"#f7f4ef";document.querySelectorAll('meta[name="theme-color"]').forEach(function(n){n.setAttribute("content",c);});}catch(e){}})();`}
         </Script>
         <ThemeProvider>
         <AuthProvider>
