@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { linkedSupabaseAnonKey, linkedSupabaseUrl } from "@/utils/linked-supabase";
+import { resolveSupabasePublic } from "@/utils/linked-supabase";
 
 interface RegisterPayload {
   fullName?: string;
@@ -14,8 +14,7 @@ const DEFAULT_SECTION_SECRET_CODE = "BLOCK9_2026";
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 export async function POST(request: Request) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || linkedSupabaseUrl;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || linkedSupabaseAnonKey;
+  const { url: supabaseUrl, anonKey: supabaseAnonKey } = resolveSupabasePublic();
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const sectionSecretCode = process.env.SECTION_SECRET_CODE || DEFAULT_SECTION_SECRET_CODE;
 

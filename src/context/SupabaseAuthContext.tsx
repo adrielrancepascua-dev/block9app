@@ -12,6 +12,7 @@ export interface Profile {
   role: 'student' | 'admin' | 'teacher';
   custom_bg_url: string | null;
   avatar_url?: string | null;
+  name_confirmed?: boolean;
   created_at: string;
 }
 
@@ -19,7 +20,10 @@ interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
+  profileReady: boolean;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  updateDisplayName: (name: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -27,7 +31,10 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
   loading: true,
+  profileReady: false,
   signIn: async () => {},
+  signInWithGoogle: async () => {},
+  updateDisplayName: async () => {},
   signOut: async () => {},
 });
 
@@ -36,6 +43,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [profileReady, setProfileReady] = useState(false);
   const authReadyRef = useRef(false);
 
   const withTimeout = async (promise: PromiseLike<any>, ms: number, label: string): Promise<any> => {
@@ -59,6 +67,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         name: email.split('@')[0], // Use email prefix as fallback name
         role: 'student',
         custom_bg_url: null,
+        name_confirmed: false,
         created_at: new Date().toISOString(),
       };
 
@@ -94,7 +103,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       );
         
       if (error) {
-        // Profile doesn't exist - trigger auto-creation
         if (email) {
           console.warn('Profile not found for user, attempting auto-creation...');
           const createdProfile = await createProfile(userId, email);
@@ -108,7 +116,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (err) {
       console.error('Unexpected error fetching profile:', err);
-      // Keep previous profile during transient failures to avoid UI flicker.
+    } finally {
+      setProfileReady(true);
     }
   };
 
@@ -141,11 +150,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } else {
           // CRITICAL: No session found - must explicitly clear loading
           setProfile(null);
+          setProfileReady(true);
           setLoading(false);
         }
       } catch (err) {
         console.error('Initialization auth error:', err);
-        setLoading(false); // Ensure loading stops on error too
+        setProfileReady(true);
+        setLoading(false);
       } finally {
         authReadyRef.current = true;
       }
@@ -161,6 +172,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (event === 'SIGNED_OUT') {
             setUser(null);
             setProfile(null);
+            setProfileReady(true);
             setLoading(false);
             return;
           }
@@ -181,17 +193,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             if (!resolvedUser) {
               setUser(null);
               setProfile(null);
+              setProfileReady(true);
               setLoading(false);
               return;
             }
 
             setUser(resolvedUser);
+            setProfileReady(false);
             setLoading(false);
             void fetchProfile(resolvedUser.id, resolvedUser.email);
             return;
           }
 
           setUser(currentUser);
+          setProfileReady(false);
           setLoading(false);
           void fetchProfile(currentUser.id, currentUser.email);
         } catch (err) {
@@ -207,6 +222,55 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       subscription.unsubscribe();
     };
   }, []);
+
+  const signInWithGoogle = async () => {
+    const redirectTo = `${window.location.origin}/`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+        queryParams: {
+          prompt: 'select_account',
+        },
+      },
+    });
+
+    if (error) {
+      console.error('Error starting Google sign-in:', error.message);
+      throw error;
+    }
+  };
+
+  const updateDisplayName = async (name: string) => {
+    if (!user) {
+      throw new Error('Sign in before choosing a name.');
+    }
+
+    const trimmed = name.trim();
+    if (!trimmed) {
+      throw new Error('Enter a name.');
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert(
+        {
+          user_id: user.id,
+          name: trimmed,
+          name_confirmed: true,
+        },
+        { onConflict: 'user_id' }
+      )
+      .select('*')
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    setProfile(data as Profile);
+    setProfileReady(true);
+  };
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
@@ -235,7 +299,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, profileReady, signIn, signInWithGoogle, updateDisplayName, signOut }}>
       {children}
     </AuthContext.Provider>
   );

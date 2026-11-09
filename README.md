@@ -18,9 +18,9 @@ npm run android:open
 
 This repo is linked to the hosted **BLOCK9** project (`hellbzfjmfkrssdsdmrr`, Seoul).
 
-Public URL and anon key live in `src/utils/linked-supabase.ts`, so the client works without extra setup. Copy `.env.example` to `.env.local` and add `SUPABASE_SERVICE_ROLE_KEY` when you want the Next.js server to create accounts directly. Without that key, `/api/register` calls the `register` edge function, which keeps the service role on Supabase.
+Public URL and anon key live in `src/utils/linked-supabase.ts`. The app uses that project even if an older `NEXT_PUBLIC_SUPABASE_URL` is still set on the host. Google sign-in needs the Google provider enabled in Supabase, with the callback `https://hellbzfjmfkrssdsdmrr.supabase.co/auth/v1/callback`.
 
-The first account created becomes the section admin. Everyone after that is a student. The section code defaults to `BLOCK9_2026` unless `SECTION_SECRET_CODE` is set.
+People sign up with Google, then choose any display name. The first account created becomes the section admin. Everyone after that is a student.
 
 Schema lives in `supabase/migrations`. `20260411_initial_schema.sql` is the base for a fresh project. Later files add chat, storage, and freedom-wall rules.
 

@@ -5,6 +5,7 @@ import { AuthProvider } from "@/context/SupabaseAuthContext";
 import Navbar from "@/components/Navbar";
 import { Toaster } from 'sonner';
 import EnvWarning from '@/components/EnvWarning';
+import NameGate from "@/components/NameGate";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -43,10 +44,12 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
         <AuthProvider>
-          <Navbar />
-          {process.env.NODE_ENV !== "production" && <EnvWarning />}
-          {children}
-          <Toaster position="top-center" richColors />
+          <NameGate>
+            <Navbar />
+            {process.env.NODE_ENV !== "production" && <EnvWarning />}
+            {children}
+            <Toaster position="top-center" richColors />
+          </NameGate>
         </AuthProvider>
       </body>
     </html>

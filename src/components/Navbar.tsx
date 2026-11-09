@@ -17,7 +17,7 @@ export default function Navbar() {
   const pathname = usePathname();
   const { user, profile } = useAuth();
 
-  if (pathname === "/login" || pathname === "/register") {
+  if (pathname === "/login" || pathname === "/register" || pathname === "/welcome" || (user && profile && profile.name_confirmed !== true)) {
     return null;
   }
 

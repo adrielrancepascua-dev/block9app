@@ -1,8 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
-import { linkedSupabaseAnonKey, linkedSupabaseUrl } from "@/utils/linked-supabase";
+import { resolveSupabasePublic } from "@/utils/linked-supabase";
 
-export const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || linkedSupabaseUrl;
-export const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || linkedSupabaseAnonKey;
+const { url, anonKey } = resolveSupabasePublic();
+
+export const supabaseUrl = url;
+export const supabaseAnonKey = anonKey;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
