@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronUp, Clock3, MapPin } from "lucide-react";
 
 export type SheetPhase = "closed" | "peek" | "expanded";
@@ -56,6 +56,7 @@ export default function DayClassSheet({
   const [isDragging, setIsDragging] = useState(false);
   const [hasEntered, setHasEntered] = useState(false);
   const [height, setHeight] = useState(() => sheetHeight(classes.length));
+  const [navOffset, setNavOffset] = useState(0);
   const heightRef = useRef(height);
   const dragYRef = useRef(0);
   const draggedRef = useRef(false);
@@ -76,6 +77,22 @@ export default function DayClassSheet({
   const snapOffset = phase === "expanded" ? 0 : hiddenOffset;
   const translateY = hasEntered ? snapOffset + dragY : height + 32;
   const progress = hiddenOffset <= 0 ? 1 : Math.min(1, Math.max(0, 1 - translateY / hiddenOffset));
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const nav = document.querySelector("nav.fixed.bottom-0");
+      if (!(nav instanceof HTMLElement)) {
+        setNavOffset(0);
+        return;
+      }
+      const top = nav.getBoundingClientRect().top;
+      const offset = Math.floor(window.innerHeight - top) - 1;
+      setNavOffset(nav.offsetHeight < 8 ? 0 : Math.max(0, offset));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
 
   useEffect(() => {
     if (phase === "closed") {
@@ -193,7 +210,10 @@ export default function DayClassSheet({
         style={{ backgroundColor: `rgba(20, 32, 51, ${isDragging ? 0.16 + progress * 0.28 : expanded ? 0.42 : 0.18})` }}
         onClick={() => (expanded ? onCollapse() : onClose())}
       />
-      <div className="pointer-events-none absolute inset-x-0 top-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] overflow-hidden md:inset-x-auto md:bottom-0 md:left-1/2 md:w-[min(64rem,calc(100%-4rem))] md:-translate-x-1/2">
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 overflow-hidden md:inset-x-auto md:left-1/2 md:w-[min(64rem,calc(100%-4rem))] md:-translate-x-1/2"
+        style={{ bottom: navOffset }}
+      >
       <div
         className="pointer-events-auto absolute inset-x-0 bottom-0 flex flex-col overflow-hidden rounded-t-[1.35rem] border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] shadow-[0_-12px_32px_rgba(20,32,51,0.18)]"
         style={{
