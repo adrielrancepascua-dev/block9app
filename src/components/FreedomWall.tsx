@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import { supabase } from "@/utils/supabase";
-import { PenLine, Trash2, X } from "lucide-react";
+import { Crosshair, PenLine, Trash2, X } from "lucide-react";
 
 interface ProfileData {
   name: string;
@@ -60,15 +60,46 @@ export default function FreedomWall() {
   const [isVoteFeatureAvailable, setIsVoteFeatureAvailable] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [centering, setCentering] = useState(false);
   const boardRef = useRef<HTMLDivElement | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const panRef = useRef({ x: 0, y: 0 });
+  const panDragRef = useRef<{ pointerId: number; x: number; y: number; originX: number; originY: number } | null>(null);
+  const BOARD_SIZE = 2.8;
 
   const clearProgress = Math.min(100, (clearVoteCount / CLEAR_VOTE_TARGET) * 100);
 
-  const getAutoPlacement = () => ({
-    x: Math.round(clamp(18 + Math.random() * 64, 14, 86)),
-    y: Math.round(clamp(18 + Math.random() * 64, 16, 84)),
-  });
+  const setPanTo = (next: { x: number; y: number }) => {
+    panRef.current = next;
+    setPan(next);
+  };
+
+  const limitPan = (x: number, y: number) => {
+    const view = viewportRef.current;
+    if (!view) return { x, y };
+    const maxX = view.clientWidth * ((BOARD_SIZE - 1) / 2);
+    const maxY = view.clientHeight * ((BOARD_SIZE - 1) / 2);
+    return { x: clamp(x, -maxX, maxX), y: clamp(y, -maxY, maxY) };
+  };
+
+  const visibleCenter = () => {
+    const view = viewportRef.current;
+    if (!view) return { x: 50, y: 50 };
+    return {
+      x: clamp(50 - (panRef.current.x / (view.clientWidth * BOARD_SIZE)) * 100, 14, 86),
+      y: clamp(50 - (panRef.current.y / (view.clientHeight * BOARD_SIZE)) * 100, 14, 86),
+    };
+  };
+
+  const getAutoPlacement = () => {
+    const center = visibleCenter();
+    return {
+      x: Math.round(clamp(center.x + (Math.random() - 0.5) * 16, 10, 90)),
+      y: Math.round(clamp(center.y + (Math.random() - 0.5) * 16, 10, 90)),
+    };
+  };
 
   const getPostColor = (post: Post) => {
     if (post.note_color) return post.note_color;
@@ -331,8 +362,40 @@ export default function FreedomWall() {
     }
   };
 
+  const onBoardPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    if ((event.target as HTMLElement).closest("[data-note-card='true']")) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setCentering(false);
+    panDragRef.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      originX: panRef.current.x,
+      originY: panRef.current.y,
+    };
+  };
+
+  const onBoardPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = panDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    setPanTo(limitPan(drag.originX + event.clientX - drag.x, drag.originY + event.clientY - drag.y));
+  };
+
+  const onBoardPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (panDragRef.current?.pointerId !== event.pointerId) return;
+    panDragRef.current = null;
+  };
+
+  const returnToCenter = () => {
+    panDragRef.current = null;
+    setCentering(true);
+    setPanTo({ x: 0, y: 0 });
+  };
+
   const onNotePointerDown = (event: React.PointerEvent<HTMLButtonElement>, post: Post) => {
     if (event.button !== 0) return;
+    event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     dragRef.current = {
       id: post.id,
@@ -435,7 +498,7 @@ export default function FreedomWall() {
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight text-[#3a2412] sm:text-3xl">Freedom Wall</h1>
           <p className="text-sm text-[#5a3418]">
-            {posts.length} {posts.length === 1 ? "note" : "notes"}. Drag to move. Tap to read.
+            {posts.length} {posts.length === 1 ? "note" : "notes"}. Drag the cork to look around.
           </p>
         </div>
         {user ? (
@@ -484,22 +547,23 @@ export default function FreedomWall() {
       {voteError ? <p className="px-4 pt-2 text-sm text-[#9f2d3a]">{voteError}</p> : null}
       {error ? <p className="px-4 pt-2 text-sm text-[#9f2d3a]">{error}</p> : null}
 
-      <div ref={boardRef} className="relative min-h-0 flex-1 overflow-hidden">
-        {isLoading ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[#5a3418]" />
-          </div>
-        ) : null}
-
-        {!isLoading && posts.length === 0 ? (
-          <div className="absolute inset-0 flex items-center justify-center p-6">
-            <div className="max-w-xs rounded-2xl bg-white/90 px-6 py-6 text-center text-[#5a3418]">
-              <p className="text-lg font-semibold">The wall is open</p>
-              <p className="mt-1 text-sm leading-relaxed">Pin the first note. Your name stays on it unless you choose anonymous.</p>
-            </div>
-          </div>
-        ) : null}
-
+      <div
+        ref={viewportRef}
+        className="relative min-h-0 flex-1 touch-none overflow-hidden bg-[#6a3d22]"
+        onPointerDown={onBoardPointerDown}
+        onPointerMove={onBoardPointerMove}
+        onPointerUp={onBoardPointerUp}
+        onPointerCancel={onBoardPointerUp}
+      >
+        <div
+          ref={boardRef}
+          className="absolute left-1/2 top-1/2 h-[280%] w-[280%]"
+          style={{
+            ...corkStyle,
+            transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px))`,
+            transition: centering ? "transform 320ms ease" : undefined,
+          }}
+        >
         {posts.map((post) => {
           const rotate = post.id ? (post.id.charCodeAt(0) % 7) - 3 : 0;
           const dragging = draggingId === post.id;
@@ -534,6 +598,35 @@ export default function FreedomWall() {
             </button>
           );
         })}
+        </div>
+
+        {isLoading ? (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[#5a3418]" />
+          </div>
+        ) : null}
+
+        {!isLoading && posts.length === 0 ? (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+            <div className="max-w-xs rounded-2xl bg-white/90 px-6 py-6 text-center text-[#5a3418]">
+              <p className="text-lg font-semibold">The wall is open</p>
+              <p className="mt-1 text-sm leading-relaxed">Pin the first note. Your name stays on it unless you choose anonymous.</p>
+            </div>
+          </div>
+        ) : null}
+
+        {Math.hypot(pan.x, pan.y) > 28 ? (
+          <button
+            type="button"
+            onClick={returnToCenter}
+            onPointerDown={(event) => event.stopPropagation()}
+            className="absolute bottom-3 right-3 z-20 inline-flex items-center gap-1 rounded-full bg-[#3a2412]/80 px-2.5 py-1 text-[11px] font-semibold text-white"
+            aria-label="Return to center"
+          >
+            <Crosshair className="h-3 w-3" />
+            Center
+          </button>
+        ) : null}
       </div>
 
       {isMounted && composerOpen

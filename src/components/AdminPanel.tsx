@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { supabase } from "@/utils/supabase";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import { toast } from "sonner";
@@ -21,6 +21,9 @@ const hourLabel = (hour: number) => {
   return `${hour12} ${suffix}`;
 };
 
+const fieldClass =
+  "w-full rounded-xl border border-[var(--line)] bg-[var(--card)] px-4 py-3 text-base text-[var(--ink)] outline-none placeholder:text-[color-mix(in_srgb,var(--muted)_45%,transparent)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20";
+
 function TimeChoice({
   id,
   value,
@@ -31,57 +34,83 @@ function TimeChoice({
   onChange: (next: string) => void;
 }) {
   const [pendingHour, setPendingHour] = useState("");
+  const [open, setOpen] = useState<"hour" | "minute" | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const hour = value.length >= 2 ? value.slice(0, 2) : "";
   const minute = value.length >= 5 ? value.slice(3, 5) : "";
+  const shownHour = hour || pendingHour;
 
   useEffect(() => {
     if (!value) setPendingHour("");
   }, [value]);
 
-  const shownHour = hour || pendingHour;
+  useEffect(() => {
+    if (!open) return;
+    panelRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+  }, [open]);
 
   const chooseHour = (nextHour: string) => {
     setPendingHour(nextHour);
     onChange(nextHour && minute ? `${nextHour}:${minute}` : "");
+    setOpen(minute ? null : "minute");
   };
 
   const chooseMinute = (nextMinute: string) => {
-    if (!shownHour || !nextMinute) {
-      onChange("");
+    if (!shownHour) {
+      setOpen("hour");
       return;
     }
     onChange(`${shownHour}:${nextMinute}`);
+    setOpen(null);
   };
 
+  const choiceClass = (active: boolean) =>
+    `min-h-11 whitespace-nowrap rounded-xl border px-1 text-sm font-semibold tabular-nums ${
+      active ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--line)] bg-[var(--card)] text-[var(--ink)]"
+    }`;
+
   return (
-    <div className="grid grid-cols-2 gap-2">
-      <select id={id} value={shownHour} onChange={(event) => chooseHour(event.target.value)} className={fieldClass}>
-        <option value="">Hour</option>
-        {HOURS.map((item) => (
-          <option key={item} value={String(item).padStart(2, "0")}>
-            {hourLabel(item)}
-          </option>
-        ))}
-      </select>
-      <select
-        aria-label={`${id} minutes`}
-        value={minute}
-        onChange={(event) => chooseMinute(event.target.value)}
-        className={fieldClass}
-      >
-        <option value="">Min</option>
-        {MINUTES.map((item) => (
-          <option key={item} value={String(item).padStart(2, "0")}>
-            :{String(item).padStart(2, "0")}
-          </option>
-        ))}
-      </select>
+    <div>
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" className={choiceClass(open === "hour")} onClick={() => setOpen(open === "hour" ? null : "hour")}>
+          {shownHour ? hourLabel(Number(shownHour)) : "Hour"}
+        </button>
+        <button
+          type="button"
+          id={id}
+          className={choiceClass(open === "minute")}
+          onClick={() => setOpen(open === "minute" ? null : "minute")}
+        >
+          {minute || "Min"}
+        </button>
+      </div>
+      {open === "hour" ? (
+        <div ref={panelRef} className="mt-2 grid grid-cols-4 gap-2" style={{ scrollMarginBottom: "6.5rem" }}>
+          {HOURS.map((item) => {
+            const key = String(item).padStart(2, "0");
+            return (
+              <button key={key} type="button" onClick={() => chooseHour(key)} className={choiceClass(shownHour === key)}>
+                {hourLabel(item)}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+      {open === "minute" ? (
+        <div ref={panelRef} className="mt-2 grid grid-cols-4 gap-2" style={{ scrollMarginBottom: "6.5rem" }}>
+          {MINUTES.map((item) => {
+            const key = String(item).padStart(2, "0");
+            return (
+              <button key={key} type="button" onClick={() => chooseMinute(key)} className={`${choiceClass(minute === key)} tabular-nums`}>
+                {key}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }
-
-const fieldClass =
-  "w-full rounded-xl border border-[var(--line)] bg-[var(--card)] px-4 py-3 text-base text-[var(--ink)] outline-none placeholder:text-[color-mix(in_srgb,var(--muted)_45%,transparent)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20";
 
 export default function AdminPanel({
   initialDate,
