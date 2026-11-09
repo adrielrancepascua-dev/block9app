@@ -293,14 +293,14 @@ export default function Home() {
                       ? `${cell.date.getDate()}, ${daySchedules.length} class${daySchedules.length === 1 ? "" : "es"}`
                       : String(cell.date.getDate())
                   }
-                  className={`min-h-10 border-b border-r border-[var(--line)] p-1 text-left sm:min-h-24 sm:p-2 ${
+                  className={`flex min-h-12 flex-col items-center border-b border-r border-[var(--line)] px-0.5 py-1 sm:min-h-24 sm:items-stretch sm:p-2 sm:text-left ${
                     isLastCol ? "border-r-0" : ""
                   } ${cell.inCurrentMonth ? "bg-[var(--surface)]" : "bg-[var(--quiet)]"} ${
                     selectedDay?.key === cell.key && sheetPhase !== "closed" ? "ring-2 ring-inset ring-[var(--accent)]" : ""
                   }`}
                 >
                   <span
-                    className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-semibold ${
+                    className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold sm:h-6 sm:w-6 sm:self-start ${
                       isToday
                         ? "bg-[var(--accent)] text-white"
                         : cell.inCurrentMonth
@@ -312,7 +312,7 @@ export default function Home() {
                   </span>
 
                   {daySchedules.length > 0 ? (
-                    <span className="mt-0.5 block w-full rounded-md bg-[var(--accent)] px-1 py-0.5 text-center text-[11px] font-bold text-white sm:hidden">
+                    <span className="mt-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[10px] font-bold leading-none text-white sm:hidden">
                       {daySchedules.length}
                     </span>
                   ) : null}
