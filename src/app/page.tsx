@@ -268,20 +268,21 @@ export default function Home() {
             </button>
           </div>
 
-          <div className="grid grid-cols-7 overflow-hidden rounded-2xl border border-[var(--line)]">
+          <div className="grid grid-cols-7">
             {WEEKDAYS.map((weekday) => (
               <div
                 key={weekday}
-                className="border-b border-r border-[var(--line)] bg-[var(--quiet)] px-1 py-1.5 text-center text-[11px] font-semibold text-[#5c6b7a] last:border-r-0 sm:text-xs"
+                className="px-1 pb-2 text-center text-[10px] font-semibold tracking-[0.14em] text-[var(--muted)]"
               >
-                {weekday}
+                {weekday.toUpperCase()}
               </div>
             ))}
 
-            {monthGrid.map((cell, index) => {
-              const isLastCol = index % 7 === 6;
+            {monthGrid.map((cell) => {
               const daySchedules = schedulesByDay[cell.key] || [];
               const isToday = toDateKey(cell.date) === toDateKey(new Date());
+              const hasClasses = daySchedules.length > 0;
+              const selected = selectedDay?.key === cell.key && sheetPhase !== "closed";
 
               return (
                 <button
@@ -289,47 +290,39 @@ export default function Home() {
                   key={cell.key}
                   onClick={() => openDay(cell)}
                   aria-label={
-                    daySchedules.length
+                    hasClasses
                       ? `${cell.date.getDate()}, ${daySchedules.length} class${daySchedules.length === 1 ? "" : "es"}`
                       : String(cell.date.getDate())
                   }
-                  className={`flex min-h-12 flex-col items-center border-b border-r border-[var(--line)] px-0.5 py-1 sm:min-h-24 sm:items-stretch sm:p-2 sm:text-left ${
-                    isLastCol ? "border-r-0" : ""
-                  } ${cell.inCurrentMonth ? "bg-[var(--surface)]" : "bg-[var(--quiet)]"} ${
-                    selectedDay?.key === cell.key && sheetPhase !== "closed" ? "ring-2 ring-inset ring-[var(--accent)]" : ""
-                  }`}
+                  className="flex items-start justify-center px-0.5 py-0.5"
                 >
                   <span
-                    className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold sm:h-6 sm:w-6 sm:self-start ${
-                      isToday
-                        ? "bg-[var(--accent)] text-white"
-                        : cell.inCurrentMonth
-                        ? "text-[var(--ink)]"
-                        : "text-[#9aa6b2]"
-                    }`}
+                    className={`flex w-full flex-col items-center rounded-[1.15rem] px-0.5 ${
+                      hasClasses ? "bg-[var(--quiet)] py-1.5 ring-1 ring-[var(--line)]" : "py-1"
+                    } ${selected ? "ring-2 ring-[var(--accent)]" : ""}`}
                   >
-                    {cell.date.getDate()}
-                  </span>
-
-                  {daySchedules.length > 0 ? (
-                    <span className="mt-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[10px] font-bold leading-none text-white sm:hidden">
-                      {daySchedules.length}
+                    <span
+                      className={`flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-semibold ${
+                        isToday
+                          ? "bg-[var(--accent)] text-white"
+                          : cell.inCurrentMonth
+                          ? "text-[var(--ink)]"
+                          : "text-[#9aa6b2]"
+                      }`}
+                    >
+                      {cell.date.getDate()}
                     </span>
-                  ) : null}
-
-                  <span className="mt-1 hidden space-y-1 sm:block">
-                    {daySchedules.slice(0, 3).map((schedule) => (
-                      <span
-                        key={schedule.id}
-                        className="block truncate rounded-md bg-[var(--accent)] px-2 py-1 text-xs font-semibold text-white"
-                      >
-                        {schedule.subject}
-                      </span>
-                    ))}
-                    {daySchedules.length > 3 ? (
-                      <span className="block px-1 text-[10px] font-semibold text-[var(--muted)]">
-                        +{daySchedules.length - 3} more
-                      </span>
+                    {hasClasses ? (
+                      <>
+                        <span className="mt-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--ink)] px-1.5 text-[10px] font-bold leading-none text-[var(--surface)]">
+                          {daySchedules.length}
+                        </span>
+                        <span className="mt-1 flex h-1.5 items-center gap-0.5">
+                          {daySchedules.slice(0, 4).map((schedule) => (
+                            <span key={schedule.id} className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
+                          ))}
+                        </span>
+                      </>
                     ) : null}
                   </span>
                 </button>
