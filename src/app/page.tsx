@@ -294,36 +294,25 @@ export default function Home() {
                       ? `${cell.date.getDate()}, ${daySchedules.length} class${daySchedules.length === 1 ? "" : "es"}`
                       : String(cell.date.getDate())
                   }
-                  className="flex items-start justify-center px-0.5 py-0.5"
+                  className="flex h-12 flex-col items-center justify-center"
                 >
                   <span
-                    className={`flex w-full flex-col items-center rounded-[1.15rem] px-0.5 ${
-                      hasClasses ? "bg-[var(--quiet)] py-1.5 ring-1 ring-[var(--line)]" : "py-1"
-                    } ${selected ? "ring-2 ring-[var(--accent)]" : ""}`}
+                    className={`flex h-8 w-8 items-center justify-center rounded-full text-[13px] font-semibold ${
+                      isToday
+                        ? "bg-[var(--accent)] text-white"
+                        : cell.inCurrentMonth
+                        ? "text-[var(--ink)]"
+                        : "text-[#9aa6b2]"
+                    } ${selected ? "ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[var(--surface)]" : ""}`}
                   >
-                    <span
-                      className={`flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-semibold ${
-                        isToday
-                          ? "bg-[var(--accent)] text-white"
-                          : cell.inCurrentMonth
-                          ? "text-[var(--ink)]"
-                          : "text-[#9aa6b2]"
-                      }`}
-                    >
-                      {cell.date.getDate()}
-                    </span>
-                    {hasClasses ? (
-                      <>
-                        <span className="mt-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--ink)] px-1.5 text-[10px] font-bold leading-none text-[var(--surface)]">
-                          {daySchedules.length}
-                        </span>
-                        <span className="mt-1 flex h-1.5 items-center gap-0.5">
-                          {daySchedules.slice(0, 4).map((schedule) => (
-                            <span key={schedule.id} className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
-                          ))}
-                        </span>
-                      </>
-                    ) : null}
+                    {cell.date.getDate()}
+                  </span>
+                  <span className="mt-0.5 flex h-1.5 items-center gap-0.5">
+                    {hasClasses
+                      ? daySchedules.slice(0, 3).map((schedule) => (
+                          <span key={schedule.id} className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
+                        ))
+                      : null}
                   </span>
                 </button>
               );
