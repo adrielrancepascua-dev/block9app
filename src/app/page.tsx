@@ -396,12 +396,12 @@ export default function Home() {
   return (
     <ProfileLayout surface="paper">
       <div className="w-full">
-        <div className="mb-8 flex flex-col gap-5 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
+        <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-[1.85rem] font-semibold tracking-tight text-[var(--ink)] sm:text-4xl">
+            <h1 className="text-2xl font-semibold tracking-tight text-[var(--ink)] sm:text-3xl">
               Hi, {profile?.name || "Student"}
             </h1>
-            <p className="mt-2 max-w-md text-base leading-relaxed text-[var(--muted)]">
+            <p className="mt-1 max-w-md text-sm leading-relaxed text-[var(--muted)]">
               Tap a day to see the room, the time, and who is going.
             </p>
           </div>
@@ -438,41 +438,35 @@ export default function Home() {
           </div>
         )}
 
-        <div className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[0_1px_2px_rgba(20,32,51,0.04)] sm:p-6">
-          <div className="mb-6 flex flex-col gap-4 sm:mb-7 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-center text-[1.7rem] font-semibold tracking-tight text-[var(--ink)] sm:text-left sm:text-3xl">
-              {monthTitle}
-            </h2>
-            <div className="flex items-center justify-center gap-2 sm:justify-end">
-              <button
-                type="button"
-                onClick={goToPreviousMonth}
-                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--line)] bg-[var(--quiet)] px-4 text-sm font-semibold text-[var(--ink)] transition hover:bg-[var(--surface)] active:scale-[0.98]"
-              >
-                Prev
-              </button>
-              <button
-                type="button"
-                onClick={goToCurrentMonth}
-                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--line)] bg-[var(--quiet)] px-4 text-sm font-semibold text-[var(--ink)] transition hover:bg-[var(--surface)] active:scale-[0.98]"
-              >
+        <div className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] p-3 shadow-[0_1px_2px_rgba(20,32,51,0.04)] sm:p-5">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={goToPreviousMonth}
+              className="inline-flex min-h-9 items-center justify-center rounded-lg border border-[var(--line)] bg-[var(--quiet)] px-3 text-sm font-semibold text-[var(--ink)]"
+            >
+              Prev
+            </button>
+            <div className="text-center">
+              <h2 className="text-lg font-semibold tracking-tight text-[var(--ink)]">{monthTitle}</h2>
+              <button type="button" onClick={goToCurrentMonth} className="text-xs font-semibold text-[var(--accent-text)]">
                 Today
               </button>
-              <button
-                type="button"
-                onClick={goToNextMonth}
-                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--line)] bg-[var(--quiet)] px-4 text-sm font-semibold text-[var(--ink)] transition hover:bg-[var(--surface)] active:scale-[0.98]"
-              >
-                Next
-              </button>
             </div>
+            <button
+              type="button"
+              onClick={goToNextMonth}
+              className="inline-flex min-h-9 items-center justify-center rounded-lg border border-[var(--line)] bg-[var(--quiet)] px-3 text-sm font-semibold text-[var(--ink)]"
+            >
+              Next
+            </button>
           </div>
 
           <div className="grid grid-cols-7 overflow-hidden rounded-2xl border border-[var(--line)]">
             {WEEKDAYS.map((weekday) => (
               <div
                 key={weekday}
-                className="min-h-11 border-b border-r border-[var(--line)] bg-[var(--quiet)] px-1 py-2.5 text-center text-[11px] font-semibold text-[#5c6b7a] last:border-r-0 sm:text-xs"
+                className="border-b border-r border-[var(--line)] bg-[var(--quiet)] px-1 py-1.5 text-center text-[11px] font-semibold text-[#5c6b7a] last:border-r-0 sm:text-xs"
               >
                 {weekday}
               </div>
@@ -486,13 +480,13 @@ export default function Home() {
               return (
                 <div
                   key={cell.key}
-                  className={`min-h-[4.75rem] border-b border-r border-[var(--line)] p-1.5 sm:min-h-32 sm:p-2 ${
+                  className={`min-h-10 border-b border-r border-[var(--line)] p-1 sm:min-h-24 sm:p-2 ${
                     isLastCol ? "border-r-0" : ""
                   } ${cell.inCurrentMonth ? "bg-[var(--surface)]" : "bg-[var(--quiet)]"}`}
                 >
-                  <div className="mb-1.5 flex items-center justify-between">
+                  <div className="flex items-center justify-between">
                     <span
-                      className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-xs font-semibold ${
+                      className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-semibold ${
                         isToday
                           ? "bg-[var(--accent)] text-white"
                           : cell.inCurrentMonth
@@ -510,9 +504,9 @@ export default function Home() {
                         type="button"
                         onClick={() => openDayEvents(daySchedules, cell.date)}
                         aria-label={`${daySchedules.length} event${daySchedules.length > 1 ? "s" : ""}`}
-                        className="w-full rounded-md border border-sky-200/40 bg-[var(--accent)] px-1 py-2 text-center text-white shadow-sm transition hover:bg-[#2460ad] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200/70 sm:hidden"
+                        className="mt-0.5 w-full rounded-md bg-[var(--accent)] px-1 py-0.5 text-center text-[11px] font-bold text-white sm:hidden"
                       >
-                        <span className="block text-white text-lg font-extrabold leading-tight">{daySchedules.length}</span>
+                        <span>{daySchedules.length}</span>
                       </button>
                     )}
 
@@ -542,9 +536,7 @@ export default function Home() {
           </div>
 
           {!isFetching && schedules.length === 0 && (
-            <div className="mt-5 rounded-2xl border border-[var(--line)] bg-[var(--quiet)] px-6 py-8 text-center text-[var(--muted)]">
-              No schedules yet for this month.
-            </div>
+            <p className="mt-3 text-center text-sm text-[var(--muted)]">No classes this month.</p>
           )}
 
           {isFetching && (

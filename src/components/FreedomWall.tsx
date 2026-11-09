@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import { supabase } from "@/utils/supabase";
-import { Crosshair, PenLine, Trash2, X } from "lucide-react";
+import { Minus, PenLine, Plus, Trash2, X } from "lucide-react";
 
 interface ProfileData {
   name: string;
@@ -61,35 +61,44 @@ export default function FreedomWall() {
   const [isMounted, setIsMounted] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [centering, setCentering] = useState(false);
+  const [zoom, setZoom] = useState(1.4);
   const boardRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const panRef = useRef({ x: 0, y: 0 });
+  const zoomRef = useRef(1.4);
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchRef = useRef<{ dist: number; zoom: number; panX: number; panY: number } | null>(null);
   const panDragRef = useRef<{ pointerId: number; x: number; y: number; originX: number; originY: number } | null>(null);
-  const BOARD_SIZE = 2.8;
+  const MIN_ZOOM = 1;
+  const MAX_ZOOM = 3;
 
   const clearProgress = Math.min(100, (clearVoteCount / CLEAR_VOTE_TARGET) * 100);
 
-  const setPanTo = (next: { x: number; y: number }) => {
-    panRef.current = next;
-    setPan(next);
+  const limitPan = (x: number, y: number, scale: number) => {
+    const view = viewportRef.current;
+    if (!view || scale <= 1) return { x: 0, y: 0 };
+    const maxX = (view.clientWidth * (scale - 1)) / 2;
+    const maxY = (view.clientHeight * (scale - 1)) / 2;
+    return { x: clamp(x, -maxX, maxX), y: clamp(y, -maxY, maxY) };
   };
 
-  const limitPan = (x: number, y: number) => {
-    const view = viewportRef.current;
-    if (!view) return { x, y };
-    const maxX = view.clientWidth * ((BOARD_SIZE - 1) / 2);
-    const maxY = view.clientHeight * ((BOARD_SIZE - 1) / 2);
-    return { x: clamp(x, -maxX, maxX), y: clamp(y, -maxY, maxY) };
+  const applyView = (nextZoom: number, nextPan: { x: number; y: number }) => {
+    const scale = clamp(nextZoom, MIN_ZOOM, MAX_ZOOM);
+    const limited = limitPan(nextPan.x, nextPan.y, scale);
+    zoomRef.current = scale;
+    panRef.current = limited;
+    setZoom(scale);
+    setPan(limited);
   };
 
   const visibleCenter = () => {
     const view = viewportRef.current;
     if (!view) return { x: 50, y: 50 };
+    const scale = zoomRef.current;
     return {
-      x: clamp(50 - (panRef.current.x / (view.clientWidth * BOARD_SIZE)) * 100, 14, 86),
-      y: clamp(50 - (panRef.current.y / (view.clientHeight * BOARD_SIZE)) * 100, 14, 86),
+      x: clamp(50 - (panRef.current.x / (view.clientWidth * scale)) * 100, 14, 86),
+      y: clamp(50 - (panRef.current.y / (view.clientHeight * scale)) * 100, 14, 86),
     };
   };
 
@@ -364,34 +373,68 @@ export default function FreedomWall() {
 
   const onBoardPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
-    if ((event.target as HTMLElement).closest("[data-note-card='true']")) return;
+    if ((event.target as HTMLElement).closest("[data-note-card='true'], [data-zoom-control='true']")) return;
+    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     event.currentTarget.setPointerCapture(event.pointerId);
-    setCentering(false);
-    panDragRef.current = {
-      pointerId: event.pointerId,
-      x: event.clientX,
-      y: event.clientY,
-      originX: panRef.current.x,
-      originY: panRef.current.y,
-    };
+    if (pointersRef.current.size >= 2) {
+      const points = [...pointersRef.current.values()];
+      pinchRef.current = {
+        dist: Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y) || 1,
+        zoom: zoomRef.current,
+        panX: panRef.current.x,
+        panY: panRef.current.y,
+      };
+      panDragRef.current = null;
+      return;
+    }
+    if (zoomRef.current > 1) {
+      panDragRef.current = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        originX: panRef.current.x,
+        originY: panRef.current.y,
+      };
+    }
   };
 
   const onBoardPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!pointersRef.current.has(event.pointerId)) return;
+    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointersRef.current.size >= 2 && pinchRef.current) {
+      const points = [...pointersRef.current.values()];
+      const dist = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y) || 1;
+      applyView(pinchRef.current.zoom * (dist / pinchRef.current.dist), {
+        x: pinchRef.current.panX,
+        y: pinchRef.current.panY,
+      });
+      return;
+    }
     const drag = panDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    setPanTo(limitPan(drag.originX + event.clientX - drag.x, drag.originY + event.clientY - drag.y));
+    applyView(zoomRef.current, {
+      x: drag.originX + event.clientX - drag.x,
+      y: drag.originY + event.clientY - drag.y,
+    });
   };
 
   const onBoardPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (panDragRef.current?.pointerId !== event.pointerId) return;
-    panDragRef.current = null;
+    pointersRef.current.delete(event.pointerId);
+    if (panDragRef.current?.pointerId === event.pointerId) panDragRef.current = null;
+    if (pointersRef.current.size < 2) pinchRef.current = null;
   };
 
-  const returnToCenter = () => {
-    panDragRef.current = null;
-    setCentering(true);
-    setPanTo({ x: 0, y: 0 });
-  };
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const next = zoomRef.current * (event.deltaY < 0 ? 1.08 : 0.92);
+      applyView(next, panRef.current);
+    };
+    viewport.addEventListener("wheel", onWheel, { passive: false });
+    return () => viewport.removeEventListener("wheel", onWheel);
+  }, []);
 
   const onNotePointerDown = (event: React.PointerEvent<HTMLButtonElement>, post: Post) => {
     if (event.button !== 0) return;
@@ -498,7 +541,7 @@ export default function FreedomWall() {
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight text-[#3a2412] sm:text-3xl">Freedom Wall</h1>
           <p className="text-sm text-[#5a3418]">
-            {posts.length} {posts.length === 1 ? "note" : "notes"}. Drag the cork to look around.
+            {posts.length} {posts.length === 1 ? "note" : "notes"}. Pinch to zoom. Tap yours, then Erase.
           </p>
         </div>
         {user ? (
@@ -557,11 +600,10 @@ export default function FreedomWall() {
       >
         <div
           ref={boardRef}
-          className="absolute left-1/2 top-1/2 h-[280%] w-[280%]"
+          className="absolute left-1/2 top-1/2 h-full w-full origin-center"
           style={{
             ...corkStyle,
-            transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px))`,
-            transition: centering ? "transform 320ms ease" : undefined,
+            transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px)) scale(${zoom})`,
           }}
         >
         {posts.map((post) => {
@@ -615,18 +657,24 @@ export default function FreedomWall() {
           </div>
         ) : null}
 
-        {Math.hypot(pan.x, pan.y) > 28 ? (
+        <div data-zoom-control="true" className="absolute bottom-3 right-3 z-20 flex items-center gap-1 rounded-full bg-[#3a2412]/80 p-1 text-white">
           <button
             type="button"
-            onClick={returnToCenter}
-            onPointerDown={(event) => event.stopPropagation()}
-            className="absolute bottom-3 right-3 z-20 inline-flex items-center gap-1 rounded-full bg-[#3a2412]/80 px-2.5 py-1 text-[11px] font-semibold text-white"
-            aria-label="Return to center"
+            onClick={() => applyView(zoomRef.current / 1.25, panRef.current)}
+            className="flex h-7 w-7 items-center justify-center rounded-full"
+            aria-label="Zoom out"
           >
-            <Crosshair className="h-3 w-3" />
-            Center
+            <Minus className="h-3.5 w-3.5" />
           </button>
-        ) : null}
+          <button
+            type="button"
+            onClick={() => applyView(zoomRef.current * 1.25, panRef.current)}
+            className="flex h-7 w-7 items-center justify-center rounded-full"
+            aria-label="Zoom in"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       {isMounted && composerOpen
@@ -697,12 +745,7 @@ export default function FreedomWall() {
                 className="relative z-10 max-h-[min(88dvh,720px)] w-full max-w-md overflow-y-auto rounded-t-[1.5rem] p-5 shadow-2xl sm:rounded-[1.25rem] sm:p-7"
                 style={{ backgroundColor: getPostColor(selectedPost) }}
               >
-                <div className="mb-4 flex justify-end gap-2">
-                  {profile?.role === "admin" || selectedPost.author_id === user?.id ? (
-                    <button type="button" onClick={() => handleDelete(selectedPost.id)} className="rounded-full bg-black/10 p-2" aria-label="Erase note">
-                      <Trash2 className="h-5 w-5" />
-                    </button>
-                  ) : null}
+                <div className="mb-4 flex justify-end">
                   <button type="button" onClick={() => setSelectedPost(null)} className="rounded-full bg-black/10 p-2" aria-label="Close">
                     <X className="h-5 w-5" />
                   </button>
@@ -713,6 +756,16 @@ export default function FreedomWall() {
                 <p className="mt-6 text-sm font-semibold text-[#142033]/70">
                   {selectedPost.is_anonymous ? "Anonymous" : selectedPost.author_name}
                 </p>
+                {profile?.role === "admin" || selectedPost.author_id === user?.id ? (
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(selectedPost.id)}
+                    className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#9f2d3a] text-sm font-semibold text-white"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Erase
+                  </button>
+                ) : null}
               </div>
             </div>,
             document.body
