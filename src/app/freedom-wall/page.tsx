@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import ProfileLayout from "@/components/ProfileLayout";
 import FreedomWall from "@/components/FreedomWall";
+import AppLoading from "@/components/AppLoading";
 
 export default function FreedomWallPage() {
   const { user, loading } = useAuth();
@@ -18,9 +19,7 @@ export default function FreedomWallPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
-        Loading...
-      </div>
+      <AppLoading />
     );
   }
 
@@ -37,7 +36,7 @@ export default function FreedomWallPage() {
       <div className="w-full">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-800 drop-shadow-md dark:text-white">
-            Freedom Wall 💬
+            Freedom Wall
           </h1>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-200">
             Share your thoughts with the community. Post anonymously if you prefer!

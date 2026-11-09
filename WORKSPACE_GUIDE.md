@@ -56,14 +56,13 @@ npm run build
 npm run start
 ```
 
-## Database migrations (manual step in Supabase)
+## Database migrations
 
-Two SQL migrations must be run inside your Supabase project's SQL Editor. They enable Freedom Wall clear-vote functionality and allow note position updates under RLS.
+The linked BLOCK9 project already has these migrations applied. On a new database, run every file in `supabase/migrations` in filename order. `20260411_initial_schema.sql` creates profiles, schedules, attendance, and the freedom wall. Later files add clear-votes, chat, and storage.
 
-Order (run first → second):
-
-1. `supabase/migrations/20260412_freedom_wall_clear_votes.sql` — adds `x_pos`/`y_pos` and creates `freedom_wall_clear_votes` with RLS policies.
-2. `supabase/migrations/20260412_freedom_wall_move_updates.sql` — enables RLS for `freedom_wall` and creates FOR UPDATE policies for owners and admins.
+1. `supabase/migrations/20260411_initial_schema.sql` — base tables, RLS, and the first-account admin trigger.
+2. `supabase/migrations/20260412_freedom_wall_clear_votes.sql` — adds `x_pos`/`y_pos` and creates `freedom_wall_clear_votes` with RLS policies.
+3. `supabase/migrations/20260412_freedom_wall_move_updates.sql` — enables RLS for `freedom_wall` and creates FOR UPDATE policies for owners and admins.
 
 How to run:
 - Open Supabase → SQL Editor → New query.

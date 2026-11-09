@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { linkedSupabaseAnonKey, linkedSupabaseUrl } from "@/utils/linked-supabase";
 
 interface WidgetScheduleRow {
   id: string;
@@ -47,15 +48,14 @@ const getManilaDayRange = () => {
 };
 
 export async function GET(request: Request) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || linkedSupabaseUrl;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || linkedSupabaseAnonKey;
   const requiredWidgetKey = process.env.WIDGET_API_KEY;
 
-  if (!supabaseUrl || !serviceRoleKey) {
+  if (!supabaseUrl || !supabaseKey) {
     return NextResponse.json(
       {
-        message:
-          "Widget endpoint is not configured on the server. Add NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
+        message: "Widget endpoint is not configured on the server.",
       },
       { status: 500 }
     );
@@ -71,7 +71,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    const adminClient = createClient(supabaseUrl, supabaseKey, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,

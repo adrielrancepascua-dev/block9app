@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f4f7fb;
+  --foreground: #142033;
+  --accent: #1d4f91;
 }
 
 @theme inline {
@@ -14,13 +15,88 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #07111f;
+    --foreground: #e8eef7;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), "Geist", ui-sans-serif, system-ui, sans-serif;
+}
+
+button,
+a,
+input,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.auth-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: #07111f;
+}
+
+.auth-backdrop__photo {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  max-width: none;
+  object-fit: cover;
+  object-position: center 42%;
+  transform: translate3d(0, 0, 0);
+}
+
+.auth-backdrop__scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(7, 17, 31, 0.28) 0%, rgba(7, 17, 31, 0.12) 38%, rgba(7, 17, 31, 0.5) 100%),
+    radial-gradient(ellipse at center, rgba(7, 17, 31, 0.05), rgba(7, 17, 31, 0.38) 78%);
+}
+
+@media (orientation: portrait) and (max-width: 900px) and (prefers-reduced-motion: no-preference) {
+  .auth-backdrop__photo {
+    inset: auto;
+    top: 0;
+    left: 0;
+    height: 100dvh;
+    width: auto;
+    min-width: 100vw;
+    object-fit: fill;
+    animation: auth-pan 22s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite alternate;
+    will-change: transform;
+  }
+}
+
+@keyframes auth-pan {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(calc(-100% + 100vw), 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-backdrop__photo {
+    animation: none;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 42%;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .auth-card {
+    background: #0d1b2e;
+  }
 }

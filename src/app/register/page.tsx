@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Mail, Lock, User, Code } from "lucide-react";
+import { Eye, EyeOff, KeyRound, Loader2, Lock, Mail, User } from "lucide-react";
+import { AuthScreen, authButtonClass, authInputClass } from "@/components/auth-ui";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -27,13 +29,13 @@ export default function RegisterPage() {
     if (!formData.email.trim()) {
       newErrors.email = "Email is required";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = "Invalid email format";
+      newErrors.email = "Enter a valid email address";
     }
 
     if (!formData.password) {
       newErrors.password = "Password is required";
     } else if (formData.password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters";
+      newErrors.password = "Use at least 6 characters";
     }
 
     if (!formData.secretCode.trim()) {
@@ -71,19 +73,16 @@ export default function RegisterPage() {
 
       if (!response.ok) {
         toast.error(result.message || "Sign up failed. Please try again.");
-        setIsSubmitting(false);
         return;
       }
 
-      toast.success("Account created! You can sign in now.");
+      toast.success("Account created. You can sign in now.");
       setFormData({ fullName: "", email: "", password: "", secretCode: "" });
       setErrors({});
-
-      setTimeout(() => {
-        router.push("/login");
-      }, 1200);
-    } catch (err: any) {
-      console.error("Unexpected error during registration:", err.message);
+      router.push("/login");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      console.error("Unexpected error during registration:", message);
       toast.error("An unexpected error occurred. Please try again.");
     } finally {
       setIsSubmitting(false);
@@ -96,7 +95,6 @@ export default function RegisterPage() {
       ...prev,
       [name]: value,
     }));
-    // Clear error for this field when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({
         ...prev,
@@ -106,199 +104,113 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center p-4">
-      {/* Background Image */}
-      <div
-        className="fixed inset-0 z-[-1] bg-cover bg-center"
-        style={{
-          backgroundImage:
-            "url('https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=1920&q=80')",
-        }}
-      >
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
-      </div>
-
-      {/* Register Card */}
-      <div className="w-full max-w-md rounded-2xl border border-white/20 bg-white/10 p-8 shadow-xl backdrop-blur-md dark:border-white/10 dark:bg-slate-950/60">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-white drop-shadow-lg">
-            Create Account
-          </h1>
-          <p className="mt-2 text-sm text-white/80">Join Block9 today</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Full Name */}
-          <div>
-            <label htmlFor="fullName" className="block text-sm font-medium text-white/90">
-              Full Name
-            </label>
-            <div className="relative mt-2">
-              <User className="absolute left-3 top-3 h-5 w-5 text-white/50" />
-              <input
-                id="fullName"
-                type="text"
-                name="fullName"
-                value={formData.fullName}
-                onChange={handleInputChange}
-                placeholder="John Doe"
-                disabled={isSubmitting}
-                className={`w-full rounded-lg border bg-white/10 py-2.5 pl-10 pr-4 text-white placeholder-white/50 backdrop-blur-md transition focus:outline-none focus:ring-2 disabled:opacity-50 ${
-                  errors.fullName
-                    ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/30"
-                    : "border-white/20 focus:border-blue-400 focus:ring-blue-400/30"
-                }`}
-              />
-            </div>
-            {errors.fullName && (
-              <p className="mt-1 text-xs text-red-300">{errors.fullName}</p>
-            )}
-          </div>
-
-          {/* Email */}
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-white/90">
-              Email
-            </label>
-            <div className="relative mt-2">
-              <Mail className="absolute left-3 top-3 h-5 w-5 text-white/50" />
-              <input
-                id="email"
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                placeholder="you@example.com"
-                disabled={isSubmitting}
-                className={`w-full rounded-lg border bg-white/10 py-2.5 pl-10 pr-4 text-white placeholder-white/50 backdrop-blur-md transition focus:outline-none focus:ring-2 disabled:opacity-50 ${
-                  errors.email
-                    ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/30"
-                    : "border-white/20 focus:border-blue-400 focus:ring-blue-400/30"
-                }`}
-              />
-            </div>
-            {errors.email && (
-              <p className="mt-1 text-xs text-red-300">{errors.email}</p>
-            )}
-          </div>
-
-          {/* Password */}
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-white/90">
-              Password
-            </label>
-            <div className="relative mt-2">
-              <Lock className="absolute left-3 top-3 h-5 w-5 text-white/50" />
-              <input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                placeholder="••••••••"
-                disabled={isSubmitting}
-                className={`w-full rounded-lg border bg-white/10 py-2.5 pl-10 pr-10 text-white placeholder-white/50 backdrop-blur-md transition focus:outline-none focus:ring-2 disabled:opacity-50 ${
-                  errors.password
-                    ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/30"
-                    : "border-white/20 focus:border-blue-400 focus:ring-blue-400/30"
-                }`}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-3 text-white/50 transition hover:text-white/80"
-              >
-                {showPassword ? "Hide" : "Show"}
-              </button>
-            </div>
-            {errors.password && (
-              <p className="mt-1 text-xs text-red-300">{errors.password}</p>
-            )}
-          </div>
-
-          {/* Section Secret Code */}
-          <div>
-            <label htmlFor="secretCode" className="block text-sm font-medium text-white/90">
-              Section Secret Code
-            </label>
-            <div className="relative mt-2">
-              <Code className="absolute left-3 top-3 h-5 w-5 text-white/50" />
-              <input
-                id="secretCode"
-                type="text"
-                name="secretCode"
-                value={formData.secretCode}
-                onChange={handleInputChange}
-                placeholder="Enter code"
-                disabled={isSubmitting}
-                className={`w-full rounded-lg border bg-white/10 py-2.5 pl-10 pr-4 text-white placeholder-white/50 uppercase tracking-wider backdrop-blur-md transition focus:outline-none focus:ring-2 disabled:opacity-50 ${
-                  errors.secretCode
-                    ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/30"
-                    : "border-white/20 focus:border-blue-400 focus:ring-blue-400/30"
-                }`}
-              />
-            </div>
-            {errors.secretCode && (
-              <p className="mt-1 text-xs text-red-300">{errors.secretCode}</p>
-            )}
-          </div>
-
-          {/* Submit Button */}
-          <button
-            type="submit"
+    <AuthScreen title="Create your account" subtitle="Join the Block9 class board with your section code.">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Field label="Full name" htmlFor="fullName" error={errors.fullName}>
+          <User className="pointer-events-none absolute left-3.5 top-3.5 h-5 w-5 text-white/55" />
+          <input
+            id="fullName"
+            type="text"
+            name="fullName"
+            autoComplete="name"
+            value={formData.fullName}
+            onChange={handleInputChange}
+            placeholder="Your full name"
             disabled={isSubmitting}
-            className="mt-8 w-full rounded-lg bg-blue-600 py-2.5 font-medium text-white shadow-lg transition hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed"
+            className={authInputClass(Boolean(errors.fullName))}
+          />
+        </Field>
+
+        <Field label="Email" htmlFor="email" error={errors.email}>
+          <Mail className="pointer-events-none absolute left-3.5 top-3.5 h-5 w-5 text-white/55" />
+          <input
+            id="email"
+            type="email"
+            name="email"
+            autoComplete="email"
+            value={formData.email}
+            onChange={handleInputChange}
+            placeholder="you@school.edu"
+            disabled={isSubmitting}
+            className={authInputClass(Boolean(errors.email))}
+          />
+        </Field>
+
+        <Field label="Password" htmlFor="password" error={errors.password}>
+          <Lock className="pointer-events-none absolute left-3.5 top-3.5 h-5 w-5 text-white/55" />
+          <input
+            id="password"
+            type={showPassword ? "text" : "password"}
+            name="password"
+            autoComplete="new-password"
+            value={formData.password}
+            onChange={handleInputChange}
+            placeholder="At least 6 characters"
+            disabled={isSubmitting}
+            className={`${authInputClass(Boolean(errors.password))} pr-12`}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((current) => !current)}
+            className="absolute right-3 top-3 rounded-md p-1 text-white/60 transition hover:text-white"
+            aria-label={showPassword ? "Hide password" : "Show password"}
           >
-            {isSubmitting ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg
-                  className="h-5 w-5 animate-spin"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                Creating Account...
-              </span>
-            ) : (
-              "Create Account"
-            )}
+            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
           </button>
+        </Field>
 
-          {/* Login Link */}
-          <div className="pt-4 text-center">
-            <p className="text-sm text-white/80">
-              Already have an account?{" "}
-              <a
-                href="/login"
-                className="font-medium text-blue-300 transition hover:text-blue-200 hover:underline"
-              >
-                Sign in
-              </a>
-            </p>
-          </div>
-        </form>
+        <Field label="Section secret code" htmlFor="secretCode" error={errors.secretCode}>
+          <KeyRound className="pointer-events-none absolute left-3.5 top-3.5 h-5 w-5 text-white/55" />
+          <input
+            id="secretCode"
+            type="text"
+            name="secretCode"
+            autoComplete="off"
+            value={formData.secretCode}
+            onChange={handleInputChange}
+            placeholder="Section code"
+            disabled={isSubmitting}
+            className={`${authInputClass(Boolean(errors.secretCode))} uppercase tracking-[0.08em]`}
+          />
+        </Field>
 
-        {/* Info Box */}
-        <div className="mt-6 rounded-lg border border-blue-400/30 bg-blue-500/10 p-3">
-          <p className="text-xs text-blue-200">
-            <strong>Tip:</strong> Use your class section secret code to create an account, then sign in.
-          </p>
-        </div>
-      </div>
+        <button type="submit" disabled={isSubmitting} className={authButtonClass}>
+          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          {isSubmitting ? "Creating account" : "Create account"}
+        </button>
+      </form>
+
+      <p className="mt-5 text-center text-sm text-white/75">
+        Already registered?{" "}
+        <Link href="/login" className="font-semibold text-sky-200 hover:text-white">
+          Sign in
+        </Link>
+      </p>
+      <p className="mt-4 text-center text-xs leading-relaxed text-white/55">
+        Ask your section for the code, then sign in with the email you used here.
+      </p>
+    </AuthScreen>
+  );
+}
+
+function Field({
+  label,
+  htmlFor,
+  error,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  error?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label htmlFor={htmlFor} className="mb-1.5 block text-sm font-medium text-white/90">
+        {label}
+      </label>
+      <div className="relative">{children}</div>
+      {error ? <p className="mt-1.5 text-xs text-rose-200">{error}</p> : null}
     </div>
   );
 }

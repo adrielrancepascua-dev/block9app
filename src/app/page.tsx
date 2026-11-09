@@ -8,6 +8,7 @@ import AttendanceToggle, { type AttendanceStatus } from "@/components/Attendance
 import { supabase } from "@/utils/supabase";
 import { CalendarDays, Clock3, MapPin, X } from "lucide-react";
 import { toast } from "sonner";
+import AppLoading from "@/components/AppLoading";
 
 interface Schedule {
   id: string;
@@ -365,9 +366,7 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
-        Loading...
-      </div>
+      <AppLoading />
     );
   }
 
@@ -492,7 +491,7 @@ export default function Home() {
                         type="button"
                         onClick={() => openDayEvents(daySchedules, cell.date)}
                         aria-label={`${daySchedules.length} event${daySchedules.length > 1 ? "s" : ""}`}
-                        className="w-full rounded-sm border border-emerald-400/35 bg-emerald-600/85 px-1 py-2 text-center shadow-sm backdrop-blur-md transition hover:bg-emerald-600/95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70 sm:hidden"
+                        className="w-full rounded-md border border-sky-200/40 bg-[#1d4f91] px-1 py-2 text-center text-white shadow-sm transition hover:bg-[#2460ad] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200/70 sm:hidden"
                       >
                         <span className="block text-white text-lg font-extrabold leading-tight">{daySchedules.length}</span>
                       </button>
@@ -504,7 +503,7 @@ export default function Home() {
                           key={schedule.id}
                           type="button"
                           onClick={() => setSelectedSchedule(schedule)}
-                          className="w-full overflow-hidden rounded-sm border border-emerald-400/35 bg-emerald-600/75 px-2 py-1 text-left text-xs font-semibold text-emerald-50 shadow-sm backdrop-blur-md transition hover:bg-emerald-600/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70"
+                          className="w-full overflow-hidden rounded-md border border-sky-200/35 bg-[#1d4f91] px-2 py-1 text-left text-xs font-semibold text-white shadow-sm transition hover:bg-[#2460ad] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200/70"
                           title={`${schedule.subject} (${formatTime(schedule.start_time)} - ${formatTime(
                             schedule.end_time
                           )})`}
@@ -572,10 +571,10 @@ export default function Home() {
                     setSelectedDayEvents(null);
                     setSelectedSchedule(schedule);
                   }}
-                  className="w-full rounded-md border border-emerald-400/35 bg-emerald-600/75 p-3 text-left text-emerald-50 shadow-sm backdrop-blur-md transition hover:bg-emerald-600/90"
+                  className="w-full rounded-md border border-sky-200/35 bg-[#1d4f91] p-3 text-left text-white shadow-sm transition hover:bg-[#2460ad]"
                 >
                   <p className="text-sm font-bold">{schedule.subject}</p>
-                  <p className="mt-0.5 text-xs text-emerald-100/90">
+                  <p className="mt-0.5 text-xs text-sky-100/90">
                     {formatTime(schedule.start_time)} - {formatTime(schedule.end_time)}
                   </p>
                 </button>

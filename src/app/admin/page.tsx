@@ -8,6 +8,7 @@ import AdminPanel from "@/components/AdminPanel";
 import { supabase } from "@/utils/supabase";
 import { toast } from "sonner";
 import { Trash2, Clock, MapPin } from "lucide-react";
+import AppLoading from "@/components/AppLoading";
 
 interface Schedule {
   id: string;
@@ -79,9 +80,7 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
-        Loading...
-      </div>
+      <AppLoading />
     );
   }
 

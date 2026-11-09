@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { linkedSupabaseAnonKey, linkedSupabaseUrl } from "@/utils/linked-supabase";
 
 interface RegisterPayload {
   fullName?: string;
@@ -13,19 +14,10 @@ const DEFAULT_SECTION_SECRET_CODE = "BLOCK9_2026";
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 export async function POST(request: Request) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || linkedSupabaseUrl;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || linkedSupabaseAnonKey;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const sectionSecretCode = process.env.SECTION_SECRET_CODE || DEFAULT_SECTION_SECRET_CODE;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    return NextResponse.json(
-      {
-        message:
-          "Registration is not configured on the server. Add NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
-      },
-      { status: 500 }
-    );
-  }
 
   let payload: RegisterPayload;
 
@@ -56,8 +48,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Section secret code is required." }, { status: 400 });
   }
 
-  if (secretCode !== sectionSecretCode) {
+  if (secretCode.toUpperCase() !== sectionSecretCode.toUpperCase()) {
     return NextResponse.json({ message: "Invalid section secret code." }, { status: 403 });
+  }
+
+  if (!serviceRoleKey) {
+    const edgeResponse = await fetch(`${supabaseUrl}/functions/v1/register`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ fullName, email, password, secretCode }),
+    });
+    const edgeResult = await edgeResponse.json().catch(() => ({ message: "Registration failed." }));
+    return NextResponse.json(
+      { message: edgeResult.message || "Registration failed." },
+      { status: edgeResponse.status }
+    );
   }
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
@@ -66,6 +75,11 @@ export async function POST(request: Request) {
       autoRefreshToken: false,
     },
   });
+
+  const { count: existingProfiles } = await adminClient
+    .from("profiles")
+    .select("user_id", { count: "exact", head: true });
+  const role = (existingProfiles ?? 0) === 0 ? "admin" : "student";
 
   const { data: userData, error: createUserError } = await adminClient.auth.admin.createUser({
     email,
@@ -95,7 +109,7 @@ export async function POST(request: Request) {
     {
       user_id: userId,
       name: fullName,
-      role: "student",
+      role,
       custom_bg_url: null,
       created_at: new Date().toISOString(),
     },

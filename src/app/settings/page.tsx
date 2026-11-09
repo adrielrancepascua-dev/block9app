@@ -7,6 +7,7 @@ import ProfileLayout from "@/components/ProfileLayout";
 import { supabase } from "@/utils/supabase";
 import { toast } from "sonner";
 import { Eye, ImageIcon, Save, Upload, UserRound, X } from "lucide-react";
+import AppLoading from "@/components/AppLoading";
 
 export default function SettingsPage() {
   const { user, profile, loading } = useAuth();
@@ -206,9 +207,7 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
-        Loading...
-      </div>
+      <AppLoading />
     );
   }
 

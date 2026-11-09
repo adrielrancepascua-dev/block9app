@@ -8,48 +8,51 @@ import { Home, MessageCircle, MessageSquare, Settings, ShieldAlert } from "lucid
 
 interface NavItem {
   label: string;
+  shortLabel: string;
   href: string;
   icon: React.ReactNode;
-  adminOnly?: boolean;
 }
 
 export default function Navbar() {
   const pathname = usePathname();
   const { user, profile } = useAuth();
 
-  // Don't show navbar on login page
-  if (pathname === "/login") {
+  if (pathname === "/login" || pathname === "/register") {
     return null;
   }
 
-  // Define navigation items
   const navItems: NavItem[] = [
     {
       label: "Home",
+      shortLabel: "Home",
       href: "/",
-      icon: <Home className="h-5 w-5" />,
+      icon: <Home className="h-5 w-5" strokeWidth={1.75} />,
     },
     {
       label: "Freedom Wall",
+      shortLabel: "Wall",
       href: "/freedom-wall",
-      icon: <MessageSquare className="h-5 w-5" />,
+      icon: <MessageSquare className="h-5 w-5" strokeWidth={1.75} />,
     },
     {
       label: "Chat",
+      shortLabel: "Chat",
       href: "/chat",
-      icon: <MessageCircle className="h-5 w-5" />,
+      icon: <MessageCircle className="h-5 w-5" strokeWidth={1.75} />,
     },
     {
       label: "Settings",
+      shortLabel: "Settings",
       href: "/settings",
-      icon: <Settings className="h-5 w-5" />,
+      icon: <Settings className="h-5 w-5" strokeWidth={1.75} />,
     },
     ...(profile?.role === "admin"
       ? [
           {
             label: "Admin",
+            shortLabel: "Admin",
             href: "/admin",
-            icon: <ShieldAlert className="h-5 w-5" />,
+            icon: <ShieldAlert className="h-5 w-5" strokeWidth={1.75} />,
           },
         ]
       : []),
@@ -70,30 +73,28 @@ export default function Navbar() {
   return (
     <>
       {/* Mobile Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 block border-t border-white/20 bg-white/10 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] backdrop-blur-md md:hidden">
-        <div className="flex items-center justify-around gap-1 px-2 pt-2">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200/80 bg-white/90 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl md:hidden dark:border-white/10 dark:bg-[#07111f]/90">
+        <div className="flex items-stretch justify-around gap-0.5 px-1 pt-1.5">
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center gap-1 rounded-lg px-3 py-2 text-xs font-medium transition-all ${
+              className={`flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-medium transition active:scale-[0.98] ${
                 isActive(item.href)
-                  ? "bg-blue-500/30 text-blue-600 dark:text-blue-300"
+                  ? "bg-[#1d4f91]/12 text-[#1d4f91] dark:bg-sky-300/15 dark:text-sky-200"
                   : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
               }`}
               title={item.label}
             >
-              <div className="flex items-center justify-center">
-                {item.icon}
-              </div>
-              <span className="hidden sm:inline">{item.label}</span>
+              {item.icon}
+              <span className="max-w-full truncate">{item.shortLabel}</span>
             </Link>
           ))}
         </div>
       </nav>
 
       {/* Desktop Top Navigation */}
-      <nav className="sticky top-0 z-40 hidden border-b border-white/20 bg-white/10 backdrop-blur-md md:block">
+      <nav className="sticky top-0 z-40 hidden border-b border-slate-200/80 bg-white/85 backdrop-blur-xl md:block dark:border-white/10 dark:bg-[#07111f]/85">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             {/* Left: Logo/Brand */}

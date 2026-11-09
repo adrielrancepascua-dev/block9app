@@ -4,13 +4,15 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import ChatRoom from "@/components/ChatRoom";
+import AppLoading from "@/components/AppLoading";
+import { CLASS_PHOTO } from "@/utils/brand";
 
 export default function ChatPage() {
   const { user, profile, loading } = useAuth();
   const router = useRouter();
   const bgUrl =
     profile?.custom_bg_url ||
-    "https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&q=80";
+    CLASS_PHOTO;
 
   React.useEffect(() => {
     if (!loading && !user) {
@@ -20,9 +22,7 @@ export default function ChatPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
-        Loading...
-      </div>
+      <AppLoading />
     );
   }
 
