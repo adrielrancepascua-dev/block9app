@@ -61,25 +61,27 @@ export default function FreedomWall() {
   const [isMounted, setIsMounted] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1.4);
+  const [zoom, setZoom] = useState(1);
   const boardRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const panRef = useRef({ x: 0, y: 0 });
-  const zoomRef = useRef(1.4);
+  const zoomRef = useRef(1);
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchRef = useRef<{ dist: number; zoom: number; panX: number; panY: number } | null>(null);
   const panDragRef = useRef<{ pointerId: number; x: number; y: number; originX: number; originY: number } | null>(null);
-  const MIN_ZOOM = 1;
-  const MAX_ZOOM = 3;
+  const BOARD_MULTIPLIER = 5;
+  const MIN_ZOOM = 1 / 5;
+  const MAX_ZOOM = 1.6;
 
   const clearProgress = Math.min(100, (clearVoteCount / CLEAR_VOTE_TARGET) * 100);
 
   const limitPan = (x: number, y: number, scale: number) => {
     const view = viewportRef.current;
-    if (!view || scale <= 1) return { x: 0, y: 0 };
-    const maxX = (view.clientWidth * (scale - 1)) / 2;
-    const maxY = (view.clientHeight * (scale - 1)) / 2;
+    const span = BOARD_MULTIPLIER * scale;
+    if (!view || span <= 1.02) return { x: 0, y: 0 };
+    const maxX = (view.clientWidth * (span - 1)) / 2;
+    const maxY = (view.clientHeight * (span - 1)) / 2;
     return { x: clamp(x, -maxX, maxX), y: clamp(y, -maxY, maxY) };
   };
 
@@ -92,21 +94,18 @@ export default function FreedomWall() {
     setPan(limited);
   };
 
-  const visibleCenter = () => {
-    const view = viewportRef.current;
-    if (!view) return { x: 50, y: 50 };
-    const scale = zoomRef.current;
-    return {
-      x: clamp(50 - (panRef.current.x / (view.clientWidth * scale)) * 100, 14, 86),
-      y: clamp(50 - (panRef.current.y / (view.clientHeight * scale)) * 100, 14, 86),
-    };
-  };
-
   const getAutoPlacement = () => {
-    const center = visibleCenter();
+    for (let attempt = 0; attempt < 14; attempt += 1) {
+      const spot = {
+        x: Math.round(10 + Math.random() * 80),
+        y: Math.round(10 + Math.random() * 80),
+      };
+      const crowded = posts.some((post) => Math.hypot(post.x_pos - spot.x, post.y_pos - spot.y) < 7);
+      if (!crowded) return spot;
+    }
     return {
-      x: Math.round(clamp(center.x + (Math.random() - 0.5) * 16, 10, 90)),
-      y: Math.round(clamp(center.y + (Math.random() - 0.5) * 16, 10, 90)),
+      x: Math.round(10 + Math.random() * 80),
+      y: Math.round(10 + Math.random() * 80),
     };
   };
 
@@ -387,7 +386,7 @@ export default function FreedomWall() {
       panDragRef.current = null;
       return;
     }
-    if (zoomRef.current > 1) {
+    if (zoomRef.current > MIN_ZOOM + 0.02) {
       panDragRef.current = {
         pointerId: event.pointerId,
         x: event.clientX,
@@ -541,7 +540,7 @@ export default function FreedomWall() {
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight text-[#3a2412] sm:text-3xl">Freedom Wall</h1>
           <p className="text-sm text-[#5a3418]">
-            {posts.length} {posts.length === 1 ? "note" : "notes"}. Pinch to zoom. Tap yours, then Erase.
+            {posts.length} {posts.length === 1 ? "note" : "notes"}. Zoom out to see the whole class.
           </p>
         </div>
         {user ? (
@@ -600,7 +599,7 @@ export default function FreedomWall() {
       >
         <div
           ref={boardRef}
-          className="absolute left-1/2 top-1/2 h-full w-full origin-center"
+          className="absolute left-1/2 top-1/2 h-[500%] w-[500%] origin-center"
           style={{
             ...corkStyle,
             transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px)) scale(${zoom})`,
@@ -660,7 +659,7 @@ export default function FreedomWall() {
         <div data-zoom-control="true" className="absolute bottom-3 right-3 z-20 flex items-center gap-1 rounded-full bg-[#3a2412]/80 p-1 text-white">
           <button
             type="button"
-            onClick={() => applyView(zoomRef.current / 1.25, panRef.current)}
+            onClick={() => applyView(zoomRef.current / 1.45, panRef.current)}
             className="flex h-7 w-7 items-center justify-center rounded-full"
             aria-label="Zoom out"
           >
@@ -668,7 +667,7 @@ export default function FreedomWall() {
           </button>
           <button
             type="button"
-            onClick={() => applyView(zoomRef.current * 1.25, panRef.current)}
+            onClick={() => applyView(zoomRef.current * 1.45, panRef.current)}
             className="flex h-7 w-7 items-center justify-center rounded-full"
             aria-label="Zoom in"
           >
