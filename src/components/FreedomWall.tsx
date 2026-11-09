@@ -70,8 +70,8 @@ export default function FreedomWall() {
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchRef = useRef<{ dist: number; zoom: number; panX: number; panY: number } | null>(null);
   const panDragRef = useRef<{ pointerId: number; x: number; y: number; originX: number; originY: number } | null>(null);
-  const BOARD_MULTIPLIER = 5;
-  const MIN_ZOOM = 1 / 5;
+  const BOARD_MULTIPLIER = 4;
+  const MIN_ZOOM = 1 / 4;
   const MAX_ZOOM = 1.6;
 
   const clearProgress = Math.min(100, (clearVoteCount / CLEAR_VOTE_TARGET) * 100);
@@ -599,7 +599,7 @@ export default function FreedomWall() {
       >
         <div
           ref={boardRef}
-          className="absolute left-1/2 top-1/2 h-[500%] w-[500%] origin-center"
+          className="absolute left-1/2 top-1/2 h-[400%] w-[400%] origin-center"
           style={{
             ...corkStyle,
             transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px)) scale(${zoom})`,
