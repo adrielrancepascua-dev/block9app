@@ -15,7 +15,7 @@ interface Schedule {
   subject: string;
   room: string;
   start_time: string;
-  end_time: string;
+  end_time: string | null;
 }
 
 export default function AdminPage() {
@@ -132,10 +132,12 @@ export default function AdminPage() {
                   hour: "2-digit",
                   minute: "2-digit",
                 });
-                const formattedEnd = new Date(schedule.end_time).toLocaleTimeString(
-                  [],
-                  { hour: "2-digit", minute: "2-digit" }
-                );
+                const formattedEnd = schedule.end_time
+                  ? new Date(schedule.end_time).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : "";
                 const scheduleDate = new Date(schedule.start_time).toLocaleDateString(
                   undefined,
                   { weekday: "short", year: "numeric", month: "short", day: "numeric" }
@@ -176,7 +178,7 @@ export default function AdminPage() {
                       <div className="flex items-center gap-1.5">
                         <Clock className="h-4 w-4 text-blue-500" />
                         <span>
-                          {formattedStart} - {formattedEnd}
+                          {formattedEnd ? `${formattedStart} - ${formattedEnd}` : `${formattedStart} · Dismissal not set`}
                         </span>
                       </div>
 

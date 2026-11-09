@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import ProfileLayout from "@/components/ProfileLayout";
@@ -16,7 +17,7 @@ interface Schedule {
   subject: string;
   room: string;
   start_time: string;
-  end_time: string;
+  end_time: string | null;
 }
 
 interface AttendanceSummary {
@@ -65,11 +66,18 @@ const toDateKey = (date: Date) =>
     date.getDate()
   ).padStart(2, "0")}`;
 
-const formatTime = (timeStr?: string) => {
-  if (!timeStr) return "TBA";
+const formatTime = (timeStr?: string | null) => {
+  if (!timeStr) return "";
   const d = new Date(timeStr);
-  if (Number.isNaN(d.getTime())) return "TBA";
+  if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
+
+const formatSpan = (start?: string | null, end?: string | null) => {
+  const startLabel = formatTime(start);
+  const endLabel = formatTime(end);
+  if (!endLabel) return startLabel || "Time not set";
+  return `${startLabel} - ${endLabel}`;
 };
 
 const formatDate = (timeStr?: string) => {
@@ -121,10 +129,15 @@ export default function Home() {
   } | null>(null);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
-  const [composerDate, setComposerDate] = useState<string | null>(null);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [overlayReady, setOverlayReady] = useState(false);
 
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
+
+  useEffect(() => {
+    setOverlayReady(true);
+  }, []);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -397,7 +410,7 @@ export default function Home() {
             {profile?.role === "admin" && (
               <>
                 <button
-                  onClick={() => setComposerDate(toDateKey(new Date()))}
+                  onClick={() => setComposerOpen(true)}
                   className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2460ad] active:scale-[0.98]"
                 >
                   Add a class
@@ -473,16 +486,9 @@ export default function Home() {
               return (
                 <div
                   key={cell.key}
-                  onClick={() => {
-                    if (profile?.role === "admin" && daySchedules.length === 0) {
-                      setComposerDate(cell.key);
-                    }
-                  }}
                   className={`min-h-[4.75rem] border-b border-r border-[var(--line)] p-1.5 sm:min-h-32 sm:p-2 ${
                     isLastCol ? "border-r-0" : ""
-                  } ${cell.inCurrentMonth ? "bg-[var(--surface)]" : "bg-[var(--quiet)]"} ${
-                    profile?.role === "admin" && daySchedules.length === 0 ? "cursor-pointer" : ""
-                  }`}
+                  } ${cell.inCurrentMonth ? "bg-[var(--surface)]" : "bg-[var(--quiet)]"}`}
                 >
                   <div className="mb-1.5 flex items-center justify-between">
                     <span
@@ -517,9 +523,7 @@ export default function Home() {
                           type="button"
                           onClick={() => setSelectedSchedule(schedule)}
                           className="w-full overflow-hidden rounded-md border border-sky-200/35 bg-[var(--accent)] px-2 py-1 text-left text-xs font-semibold text-white shadow-sm transition hover:bg-[#2460ad] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200/70"
-                          title={`${schedule.subject} (${formatTime(schedule.start_time)} - ${formatTime(
-                            schedule.end_time
-                          )})`}
+                          title={`${schedule.subject} (${formatSpan(schedule.start_time, schedule.end_time)})`}
                         >
                           <span className="truncate">{schedule.subject}</span>
                         </button>
@@ -551,9 +555,10 @@ export default function Home() {
         </div>
       </div>
 
-      {selectedDayEvents && (
+      {overlayReady && selectedDayEvents
+        ? createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center sm:p-6"
+          className="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 p-3 pb-[calc(5.2rem+env(safe-area-inset-bottom))] sm:items-center sm:p-6"
           onClick={() => setSelectedDayEvents(null)}
         >
           <div
@@ -588,22 +593,25 @@ export default function Home() {
                 >
                   <p className="text-sm font-bold">{schedule.subject}</p>
                   <p className="mt-0.5 text-xs text-sky-100/90">
-                    {formatTime(schedule.start_time)} - {formatTime(schedule.end_time)}
+                    {formatSpan(schedule.start_time, schedule.end_time)}
                   </p>
                 </button>
               ))}
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+        document.body
+      )
+        : null}
 
-      {selectedSchedule && (
+      {overlayReady && selectedSchedule
+        ? createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center sm:p-6"
+          className="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-center sm:p-6"
           onClick={() => setSelectedSchedule(null)}
         >
           <div
-            className="w-full max-w-lg rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] p-5 text-[var(--ink)] shadow-2xl"
+            className="max-h-[min(88dvh,760px)] w-full max-w-lg overflow-y-auto rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] p-5 text-[var(--ink)] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-start justify-between">
@@ -625,7 +633,8 @@ export default function Home() {
               </p>
               <p className="flex items-center gap-2">
                 <Clock3 className="h-4 w-4 text-emerald-600" />
-                {formatTime(selectedSchedule.start_time)} - {formatTime(selectedSchedule.end_time)}
+                {formatSpan(selectedSchedule.start_time, selectedSchedule.end_time)}
+                {!selectedSchedule.end_time ? " · Dismissal not set" : ""}
               </p>
               <p className="flex items-center gap-2">
                 <MapPin className="h-4 w-4 text-rose-500" />
@@ -670,29 +679,33 @@ export default function Home() {
               </div>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+        document.body
+      )
+        : null}
 
-      {composerDate ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#142033]/45 p-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:items-center sm:p-6">
-          <button
-            type="button"
-            className="absolute inset-0"
-            aria-label="Close the class form"
-            onClick={() => setComposerDate(null)}
-          />
-          <div className="relative z-10 w-full max-w-lg">
-            <AdminPanel
-              initialDate={composerDate}
-              onClose={() => setComposerDate(null)}
-              onCreated={() => {
-                setComposerDate(null);
-                fetchSchedules();
-              }}
-            />
-          </div>
-        </div>
-      ) : null}
+      {overlayReady && composerOpen
+        ? createPortal(
+            <div className="fixed inset-0 z-[80] flex items-end justify-center bg-[#142033]/50 sm:items-center sm:p-6">
+              <button
+                type="button"
+                className="absolute inset-0"
+                aria-label="Close the class form"
+                onClick={() => setComposerOpen(false)}
+              />
+              <div className="relative z-10 max-h-[min(92dvh,760px)] w-full max-w-lg overflow-y-auto">
+                <AdminPanel
+                  onClose={() => setComposerOpen(false)}
+                  onCreated={() => {
+                    setComposerOpen(false);
+                    fetchSchedules();
+                  }}
+                />
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </ProfileLayout>
   );
 }

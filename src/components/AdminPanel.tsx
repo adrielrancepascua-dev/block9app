@@ -4,20 +4,21 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "@/utils/supabase";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 
 const LENGTHS = [1, 2, 3, 4] as const;
-
-const todayKey = () => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-};
 
 const atLocal = (date: string, time: string) => {
   const [year, month, day] = date.split("-").map(Number);
   const [hour, minute] = time.split(":").map(Number);
   return new Date(year, month - 1, day, hour, minute, 0, 0);
 };
+
+const toTimeValue = (date: Date) =>
+  `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+
+const fieldClass =
+  "w-full rounded-xl border border-[var(--line)] bg-[var(--card)] px-4 py-3 text-base text-[var(--ink)] outline-none placeholder:text-[color-mix(in_srgb,var(--muted)_45%,transparent)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20";
 
 export default function AdminPanel({
   initialDate,
@@ -31,16 +32,35 @@ export default function AdminPanel({
   const { user } = useAuth();
   const [subject, setSubject] = useState("");
   const [room, setRoom] = useState("");
-  const [date, setDate] = useState(initialDate || todayKey());
-  const [startTime, setStartTime] = useState("08:00");
-  const [hours, setHours] = useState<(typeof LENGTHS)[number]>(3);
+  const [date, setDate] = useState(initialDate || "");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [hours, setHours] = useState<number | null>(null);
   const [weeks, setWeeks] = useState<1 | 4>(1);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (initialDate) setDate(initialDate);
+    setDate(initialDate || "");
+    setSubject("");
+    setRoom("");
+    setStartTime("");
+    setEndTime("");
+    setHours(null);
+    setError("");
   }, [initialDate]);
+
+  const chooseLength = (length: number) => {
+    if (!startTime || !date) {
+      setHours(length);
+      setEndTime("");
+      return;
+    }
+    const start = atLocal(date, startTime);
+    if (Number.isNaN(start.getTime())) return;
+    setHours(length);
+    setEndTime(toTimeValue(new Date(start.getTime() + length * 60 * 60 * 1000)));
+  };
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -51,22 +71,37 @@ export default function AdminPanel({
 
     const firstStart = atLocal(date, startTime);
     if (Number.isNaN(firstStart.getTime())) {
-      setError("That day or time is not valid.");
+      setError("That day or start time is not valid.");
       return;
+    }
+
+    let firstEnd: Date | null = null;
+    if (endTime) {
+      firstEnd = atLocal(date, endTime);
+      if (Number.isNaN(firstEnd.getTime()) || firstEnd <= firstStart) {
+        if (firstEnd && firstEnd <= firstStart) {
+          firstEnd = new Date(firstEnd.getTime() + 24 * 60 * 60 * 1000);
+        } else {
+          setError("That end time is not valid.");
+          return;
+        }
+      }
+    } else if (hours) {
+      firstEnd = new Date(firstStart.getTime() + hours * 60 * 60 * 1000);
     }
 
     setIsSubmitting(true);
     setError("");
 
+    const duration = firstEnd ? firstEnd.getTime() - firstStart.getTime() : null;
     const rows = Array.from({ length: weeks }, (_, week) => {
       const start = new Date(firstStart);
       start.setDate(start.getDate() + week * 7);
-      const end = new Date(start.getTime() + hours * 60 * 60 * 1000);
       return {
         subject: subject.trim(),
         room: room.trim(),
         start_time: start.toISOString(),
-        end_time: end.toISOString(),
+        end_time: duration === null ? null : new Date(start.getTime() + duration).toISOString(),
         created_by: user?.id,
       };
     });
@@ -83,106 +118,116 @@ export default function AdminPanel({
     toast.success(weeks === 1 ? "Class added." : "Class added for the next 4 weeks.");
     setSubject("");
     setRoom("");
+    setStartTime("");
+    setEndTime("");
+    setHours(null);
     onCreated?.();
   };
 
   return (
-    <form onSubmit={onSubmit} className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6">
-      <div className="mb-5 flex items-start justify-between gap-4">
+    <form onSubmit={onSubmit} className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] p-4 text-[var(--ink)] sm:p-6">
+      <div className="sticky top-0 z-10 mb-5 flex items-start justify-between gap-4 bg-[var(--surface)] pb-2">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight text-[var(--ink)]">Add a class</h2>
+          <h2 className="text-2xl font-semibold tracking-tight">Add a class</h2>
           <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
-            Subject, room, and a start time. The length fills in the end.
+            Leave the end time empty when dismissal is not set yet.
           </p>
         </div>
         {onClose ? (
-          <button type="button" onClick={onClose} className="text-sm font-semibold text-[var(--muted)]">
-            Close
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-2 text-[var(--muted)] hover:bg-[var(--quiet)]"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
           </button>
         ) : null}
       </div>
 
       <div className="space-y-4">
         <div>
-          <label htmlFor="subject" className="mb-2 block text-sm font-semibold text-[var(--ink)]">
+          <label htmlFor="subject" className="mb-2 block text-sm font-semibold">
             Subject
           </label>
-          <input
-            id="subject"
-            value={subject}
-            onChange={(event) => setSubject(event.target.value)}
-            placeholder="Community Health"
-            className="w-full rounded-xl border border-[var(--line)] bg-[var(--card)] px-4 py-3 text-base text-[var(--ink)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
-          />
+          <input id="subject" value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Subject" className={fieldClass} />
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label htmlFor="room" className="mb-2 block text-sm font-semibold text-[var(--ink)]">
+            <label htmlFor="room" className="mb-2 block text-sm font-semibold">
               Room
             </label>
+            <input id="room" value={room} onChange={(event) => setRoom(event.target.value)} placeholder="Room" className={fieldClass} />
+          </div>
+          <div>
+            <label htmlFor="class-date" className="mb-2 block text-sm font-semibold">
+              Day
+            </label>
+            <input id="class-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} className={fieldClass} />
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="start-time" className="mb-2 block text-sm font-semibold">
+              Starts
+            </label>
             <input
-              id="room"
-              value={room}
-              onChange={(event) => setRoom(event.target.value)}
-              placeholder="Room 203"
-              className="w-full rounded-xl border border-[var(--line)] bg-[var(--card)] px-4 py-3 text-base text-[var(--ink)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
+              id="start-time"
+              type="time"
+              value={startTime}
+              onChange={(event) => {
+                setStartTime(event.target.value);
+                setHours(null);
+              }}
+              className={fieldClass}
             />
           </div>
           <div>
-            <label htmlFor="class-date" className="mb-2 block text-sm font-semibold text-[var(--ink)]">
-              Day
+            <label htmlFor="end-time" className="mb-2 block text-sm font-semibold">
+              Ends
             </label>
             <input
-              id="class-date"
-              type="date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-              className="w-full rounded-xl border border-[var(--line)] bg-[var(--card)] px-4 py-3 text-base text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
+              id="end-time"
+              type="time"
+              value={endTime}
+              onChange={(event) => {
+                setEndTime(event.target.value);
+                setHours(null);
+              }}
+              className={fieldClass}
             />
           </div>
         </div>
 
         <div>
-          <label htmlFor="start-time" className="mb-2 block text-sm font-semibold text-[var(--ink)]">
-            Starts
-          </label>
-          <input
-            id="start-time"
-            type="time"
-            value={startTime}
-            onChange={(event) => setStartTime(event.target.value)}
-            className="w-full rounded-xl border border-[var(--line)] bg-[var(--card)] px-4 py-3 text-base text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20 sm:max-w-xs"
-          />
-        </div>
-
-        <div>
-          <p className="mb-2 text-sm font-semibold text-[var(--ink)]">Length</p>
-          <div className="grid grid-cols-4 gap-2">
+          <p className="mb-2 text-sm font-semibold">Length, if you know it</p>
+          <div className="flex flex-wrap gap-2">
             {LENGTHS.map((length) => (
               <button
                 key={length}
                 type="button"
-                onClick={() => setHours(length)}
-                className={`min-h-11 rounded-xl px-1 text-sm font-semibold ${
+                onClick={() => chooseLength(length)}
+                className={`min-h-11 whitespace-nowrap rounded-xl px-4 text-sm font-semibold ${
                   hours === length
                     ? "bg-[var(--accent)] text-white"
                     : "border border-[var(--line)] bg-[var(--quiet)] text-[var(--ink)]"
                 }`}
               >
-                {length} hour{length === 1 ? "" : "s"}
+                {length}h
               </button>
             ))}
           </div>
         </div>
 
         <div>
-          <p className="mb-2 text-sm font-semibold text-[var(--ink)]">Repeat</p>
+          <p className="mb-2 text-sm font-semibold">Repeat</p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => setWeeks(1)}
-              className={`min-h-11 rounded-xl px-4 text-sm font-semibold ${
+              className={`min-h-11 whitespace-nowrap rounded-xl px-4 text-sm font-semibold ${
                 weeks === 1 ? "bg-[var(--accent)] text-white" : "border border-[var(--line)] bg-[var(--quiet)] text-[var(--ink)]"
               }`}
             >
@@ -191,7 +236,7 @@ export default function AdminPanel({
             <button
               type="button"
               onClick={() => setWeeks(4)}
-              className={`min-h-11 rounded-xl px-4 text-sm font-semibold ${
+              className={`min-h-11 whitespace-nowrap rounded-xl px-4 text-sm font-semibold ${
                 weeks === 4 ? "bg-[var(--accent)] text-white" : "border border-[var(--line)] bg-[var(--quiet)] text-[var(--ink)]"
               }`}
             >

@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { useAuth } from '@/context/SupabaseAuthContext';
-import { supabase } from '@/utils/supabase';
-import { motion, AnimatePresence, useReducedMotion, type PanInfo } from 'framer-motion';
-import { Maximize2, Minimize2, PenLine, Trash2, X } from 'lucide-react';
+import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useAuth } from "@/context/SupabaseAuthContext";
+import { supabase } from "@/utils/supabase";
+import { PenLine, Trash2, X } from "lucide-react";
 
 interface ProfileData {
   name: string;
@@ -25,53 +24,58 @@ interface Post {
   profiles?: ProfileData;
 }
 
-const NOTE_COLORS = ['#ffe56a', '#ffc1cc', '#ffd7b5', '#d7f5c8', '#c9e4ff', '#e4d4ff'];
+interface DragState {
+  id: string;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  originX: number;
+  originY: number;
+  x: number;
+  y: number;
+  moved: boolean;
+}
 
+const NOTE_COLORS = ["#ffe56a", "#ffc1cc", "#ffd7b5", "#d7f5c8", "#c9e4ff", "#e4d4ff"];
 const CLEAR_VOTE_TARGET = 35;
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 export default function FreedomWall() {
   const { user, profile } = useAuth();
-
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(true);
   const [noteColor, setNoteColor] = useState(NOTE_COLORS[0]);
   const [composerOpen, setComposerOpen] = useState(false);
-  const reduceMotion = useReducedMotion();
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [clearVoteCount, setClearVoteCount] = useState(0);
   const [hasVotedToClear, setHasVotedToClear] = useState(false);
   const [isVoting, setIsVoting] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [voteError, setVoteError] = useState<string | null>(null);
   const [isVoteFeatureAvailable, setIsVoteFeatureAvailable] = useState(true);
-  const [isMobileBoardExpanded, setIsMobileBoardExpanded] = useState(false);
-  const [isPanningBoard, setIsPanningBoard] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
-  const boardViewportRef = useRef<HTMLDivElement | null>(null);
-  const boardPanStartRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
-  const didPanBoardRef = useRef(false);
-  const lastInteractionWasDragRef = useRef(false);
+  const dragRef = useRef<DragState | null>(null);
 
-  const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
   const clearProgress = Math.min(100, (clearVoteCount / CLEAR_VOTE_TARGET) * 100);
+
   const getAutoPlacement = () => ({
-    x: Math.round(clamp(50 + (Math.random() - 0.5) * 46, 5, 92)),
-    y: Math.round(clamp(50 + (Math.random() - 0.5) * 46, 5, 92)),
+    x: Math.round(clamp(18 + Math.random() * 64, 14, 86)),
+    y: Math.round(clamp(18 + Math.random() * 64, 16, 84)),
   });
 
   const getPostColor = (post: Post) => {
     if (post.note_color) return post.note_color;
-    if (post.profiles?.custom_bg_url && post.profiles.custom_bg_url.startsWith('#')) {
+    if (post.profiles?.custom_bg_url && post.profiles.custom_bg_url.startsWith("#")) {
       return post.profiles.custom_bg_url;
     }
-    let charCode = 0;
-    if (post.id) charCode = post.id.charCodeAt(post.id.length - 1) || 0;
+    const charCode = post.id ? post.id.charCodeAt(post.id.length - 1) || 0 : 0;
     return NOTE_COLORS[charCode % NOTE_COLORS.length];
   };
 
@@ -85,11 +89,11 @@ export default function FreedomWall() {
 
     try {
       const [{ count, error: countError }, { data: myVotes, error: myVotesError }] = await Promise.all([
-        supabase.from('freedom_wall_clear_votes').select('user_id', { count: 'exact', head: true }),
-        supabase.from('freedom_wall_clear_votes').select('user_id').eq('user_id', user.id).limit(1),
+        supabase.from("freedom_wall_clear_votes").select("user_id", { count: "exact", head: true }),
+        supabase.from("freedom_wall_clear_votes").select("user_id").eq("user_id", user.id).limit(1),
       ]);
 
-      if (countError?.code === '42P01' || myVotesError?.code === '42P01') {
+      if (countError?.code === "42P01" || myVotesError?.code === "42P01") {
         setIsVoteFeatureAvailable(false);
         return;
       }
@@ -101,43 +105,38 @@ export default function FreedomWall() {
       setClearVoteCount(count ?? 0);
       setHasVotedToClear((myVotes?.length ?? 0) > 0);
       setVoteError(null);
-    } catch (err: any) {
-      console.error('Error fetching clear votes:', err?.message || err);
-      setVoteError('Vote status is temporarily unavailable.');
+    } catch (err: unknown) {
+      console.error("Error fetching clear votes:", err);
+      setVoteError("Vote status is temporarily unavailable.");
     }
   };
 
   const fetchPosts = async (showSpinner = true) => {
     try {
-      if (showSpinner) {
-        setIsLoading(true);
-      } else {
-        setIsRefreshing(true);
-      }
+      if (showSpinner) setIsLoading(true);
       setError(null);
       const { data, error: fetchError } = await supabase
-        .from('freedom_wall')
-        .select('*, profiles(name, custom_bg_url)')
-        .order('created_at', { ascending: false })
+        .from("freedom_wall")
+        .select("*, profiles(name, custom_bg_url)")
+        .order("created_at", { ascending: false })
         .limit(100);
 
       if (fetchError) throw fetchError;
 
-      const postsWithAuthors = (data || []).map((post: any) => ({
+      const dragging = dragRef.current;
+      const postsWithAuthors = (data || []).map((post: Post & { profiles?: ProfileData }) => ({
         ...post,
-        author_name: post.profiles?.name || 'Unknown User',
-        note_color: post.note_color,
-        x_pos: post.x_pos ?? Math.floor(Math.random() * 70) + 10,
-        y_pos: post.y_pos ?? Math.floor(Math.random() * 70) + 10,
+        author_name: post.profiles?.name || "Unknown User",
+        x_pos: dragging?.id === post.id ? dragging.x : (post.x_pos ?? Math.floor(Math.random() * 60) + 20),
+        y_pos: dragging?.id === post.id ? dragging.y : (post.y_pos ?? Math.floor(Math.random() * 60) + 20),
       }));
 
       setPosts(postsWithAuthors);
-    } catch (err: any) {
-      console.error('Error fetching posts:', err?.message || err);
-      setError('Failed to load posts');
+    } catch (err: unknown) {
+      console.error("Error fetching posts:", err);
+      setError("Failed to load posts");
     } finally {
       setIsLoading(false);
-      setIsRefreshing(false);
     }
   };
 
@@ -146,53 +145,43 @@ export default function FreedomWall() {
   }, []);
 
   useEffect(() => {
-    if (user) {
-      setIsLoading(true);
-      fetchPosts(true);
-      fetchClearVotes();
+    if (!user) {
+      setPosts([]);
+      setClearVoteCount(0);
+      setHasVotedToClear(false);
+      setIsLoading(false);
       return;
     }
 
-    setPosts([]);
-    setClearVoteCount(0);
-    setHasVotedToClear(false);
-    setVoteError(null);
-    setIsLoading(false);
+    fetchPosts(true);
+    fetchClearVotes();
   }, [user]);
 
   useEffect(() => {
     if (!user) return;
-
     const refresh = () => {
+      if (dragRef.current) return;
       fetchPosts(false);
       fetchClearVotes();
     };
-
     const intervalId = setInterval(refresh, 60000);
-    window.addEventListener('focus', refresh);
-    window.addEventListener('online', refresh);
-
+    window.addEventListener("focus", refresh);
+    window.addEventListener("online", refresh);
     return () => {
       clearInterval(intervalId);
-      window.removeEventListener('focus', refresh);
-      window.removeEventListener('online', refresh);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("online", refresh);
     };
   }, [user]);
 
   useEffect(() => {
     if (!user) return;
-
     const voteChannel = supabase
-      .channel('freedom_wall_clear_vote_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'freedom_wall_clear_votes' },
-        () => {
-          fetchClearVotes();
-        }
-      )
+      .channel("freedom_wall_clear_vote_changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "freedom_wall_clear_votes" }, () => {
+        fetchClearVotes();
+      })
       .subscribe();
-
     return () => {
       voteChannel.unsubscribe();
     };
@@ -200,71 +189,46 @@ export default function FreedomWall() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('freedom_wall_changes')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'freedom_wall' },
-        async (payload: any) => {
-          const newPost = payload.new;
+      .channel("freedom_wall_changes")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "freedom_wall" }, async (payload) => {
+        const newPost = payload.new as Post;
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("name, custom_bg_url")
+          .eq("user_id", newPost.author_id)
+          .single();
 
-          // avoid duplicates
-          setPosts((prev) => {
-            if (prev.some((p) => p.id === newPost.id)) return prev;
-            return prev;
-          });
+        const postWithAuthor: Post = {
+          ...newPost,
+          author_name: profileData?.name || "Unknown User",
+          x_pos: newPost.x_pos ?? Math.floor(Math.random() * 60) + 20,
+          y_pos: newPost.y_pos ?? Math.floor(Math.random() * 60) + 20,
+          profiles: profileData || undefined,
+        };
 
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('name, custom_bg_url')
-            .eq('user_id', newPost.author_id)
-            .single();
-
-          const postWithAuthor: Post = {
-            id: newPost.id,
-            content: newPost.content,
-            author_id: newPost.author_id,
-            author_name: profileData?.name || 'Unknown User',
-            is_anonymous: newPost.is_anonymous,
-            created_at: newPost.created_at,
-            note_color: newPost.note_color,
-            x_pos: newPost.x_pos ?? Math.floor(Math.random() * 70) + 10,
-            y_pos: newPost.y_pos ?? Math.floor(Math.random() * 70) + 10,
-            profiles: profileData ? { name: profileData.name, custom_bg_url: profileData.custom_bg_url } : undefined,
-          };
-
-          setPosts((prev) => {
-            if (prev.some((p) => p.id === newPost.id)) return prev;
-            return [postWithAuthor, ...prev];
-          });
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'freedom_wall' },
-        (payload: any) => {
-          setPosts((prev) => prev.filter((p) => p.id !== payload.old.id));
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'freedom_wall' },
-        (payload: any) => {
-          const updatedPost = payload.new;
-          setPosts((prev) =>
-            prev.map((post) =>
-              post.id === updatedPost.id
-                ? {
-                    ...post,
-                    x_pos: updatedPost.x_pos ?? post.x_pos,
-                    y_pos: updatedPost.y_pos ?? post.y_pos,
-                    content: updatedPost.content ?? post.content,
-                    is_anonymous: updatedPost.is_anonymous ?? post.is_anonymous,
-                  }
-                : post
-            )
-          );
-        }
-      )
+        setPosts((prev) => (prev.some((post) => post.id === newPost.id) ? prev : [postWithAuthor, ...prev]));
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "freedom_wall" }, (payload) => {
+        const oldId = (payload.old as { id?: string }).id;
+        setPosts((prev) => prev.filter((post) => post.id !== oldId));
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "freedom_wall" }, (payload) => {
+        const updatedPost = payload.new as Post;
+        if (dragRef.current?.id === updatedPost.id) return;
+        setPosts((prev) =>
+          prev.map((post) =>
+            post.id === updatedPost.id
+              ? {
+                  ...post,
+                  x_pos: updatedPost.x_pos ?? post.x_pos,
+                  y_pos: updatedPost.y_pos ?? post.y_pos,
+                  content: updatedPost.content ?? post.content,
+                  is_anonymous: updatedPost.is_anonymous ?? post.is_anonymous,
+                }
+              : post
+          )
+        );
+      })
       .subscribe();
 
     return () => {
@@ -272,59 +236,41 @@ export default function FreedomWall() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!isMobileBoardExpanded) return;
-
-    const previousBodyOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      document.body.style.overflow = previousBodyOverflow;
-      boardPanStartRef.current = null;
-      didPanBoardRef.current = false;
-      setIsPanningBoard(false);
-    };
-  }, [isMobileBoardExpanded]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!content.trim() || !user) {
-      setError('Please write something before posting');
+      setError("Please write something before posting");
       return;
     }
 
     setIsSubmitting(true);
     setError(null);
-
     const currentContent = content.trim();
     const currentIsAnonymous = isAnonymous;
     const createdAt = new Date().toISOString();
     const optimisticId = `temp-${Date.now()}`;
     const { x: placedX, y: placedY } = getAutoPlacement();
 
+    const optimisticPost: Post = {
+      id: optimisticId,
+      content: currentContent,
+      author_id: user.id,
+      author_name: profile?.name || "You",
+      is_anonymous: currentIsAnonymous,
+      created_at: createdAt,
+      note_color: noteColor,
+      x_pos: placedX,
+      y_pos: placedY,
+    };
+
+    setPosts((prev) => [optimisticPost, ...prev]);
+    setContent("");
+    setIsAnonymous(true);
+    setComposerOpen(false);
+
     try {
-      const optimisticPost: Post = {
-        id: optimisticId,
-        content: currentContent,
-        author_id: user.id,
-        author_name: profile?.name || 'Loading...',
-        is_anonymous: currentIsAnonymous,
-        created_at: createdAt,
-        note_color: noteColor,
-        x_pos: placedX,
-        y_pos: placedY,
-        profiles: { name: profile?.name || 'Loading...', custom_bg_url: profile?.custom_bg_url || undefined },
-      };
-
-      // optimistic update
-      setPosts((prev) => [optimisticPost, ...prev]);
-      setContent('');
-      setIsAnonymous(true);
-      setComposerOpen(false);
-
       const { data, error: insertError } = await supabase
-        .from('freedom_wall')
+        .from("freedom_wall")
         .insert({
           content: currentContent,
           author_id: user.id,
@@ -338,14 +284,12 @@ export default function FreedomWall() {
         .single();
 
       if (insertError) throw insertError;
-
       if (data) {
-        // replace optimistic id with real id
         setPosts((prev) => prev.map((post) => (post.id === optimisticId ? { ...post, id: data.id } : post)));
       }
-    } catch (err: any) {
-      console.error('Error posting:', err?.message || err);
-      setError('Failed to post. Please try again.');
+    } catch (err: unknown) {
+      console.error("Error posting:", err);
+      setError("Failed to post. Please try again.");
       setContent(currentContent);
       setIsAnonymous(currentIsAnonymous);
       setComposerOpen(true);
@@ -355,346 +299,140 @@ export default function FreedomWall() {
     }
   };
 
-  const handleBoardViewportPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isMobileBoardExpanded) return;
-
-    const target = e.target as HTMLElement;
-    if (target.closest('[data-note-card="true"]')) return;
-
-    const viewport = boardViewportRef.current;
-    if (!viewport) return;
-
-    didPanBoardRef.current = false;
-    boardPanStartRef.current = {
-      x: e.clientX,
-      y: e.clientY,
-      scrollLeft: viewport.scrollLeft,
-      scrollTop: viewport.scrollTop,
-    };
-    setIsPanningBoard(true);
+  const moveDrag = (clientX: number, clientY: number) => {
+    const drag = dragRef.current;
+    const board = boardRef.current;
+    if (!drag || !board) return;
+    const rect = board.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const dx = ((clientX - drag.startX) / rect.width) * 100;
+    const dy = ((clientY - drag.startY) / rect.height) * 100;
+    if (Math.hypot(clientX - drag.startX, clientY - drag.startY) > 8) drag.moved = true;
+    drag.x = clamp(drag.originX + dx, 12, 88);
+    drag.y = clamp(drag.originY + dy, 14, 86);
+    setPosts((prev) => prev.map((post) => (post.id === drag.id ? { ...post, x_pos: drag.x, y_pos: drag.y } : post)));
   };
 
-  const handleBoardViewportPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isMobileBoardExpanded) return;
-    if (!boardPanStartRef.current) return;
+  const finishDrag = async () => {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    setDraggingId(null);
+    if (!drag || !drag.moved || drag.id.startsWith("temp-")) return;
 
-    const viewport = boardViewportRef.current;
-    if (!viewport) return;
+    const next = { x: Math.round(drag.x), y: Math.round(drag.y) };
+    setPosts((prev) => prev.map((post) => (post.id === drag.id ? { ...post, x_pos: next.x, y_pos: next.y } : post)));
 
-    const deltaX = e.clientX - boardPanStartRef.current.x;
-    const deltaY = e.clientY - boardPanStartRef.current.y;
-
-    if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
-      didPanBoardRef.current = true;
+    const { error: updateError } = await supabase.from("freedom_wall").update({ x_pos: next.x, y_pos: next.y }).eq("id", drag.id);
+    if (updateError) {
+      setPosts((prev) =>
+        prev.map((post) => (post.id === drag.id ? { ...post, x_pos: drag.originX, y_pos: drag.originY } : post))
+      );
+      setError("Could not save note position right now.");
     }
-
-    viewport.scrollLeft = boardPanStartRef.current.scrollLeft - deltaX;
-    viewport.scrollTop = boardPanStartRef.current.scrollTop - deltaY;
   };
 
-  const handleBoardViewportPointerUp = () => {
-    boardPanStartRef.current = null;
-    setIsPanningBoard(false);
+  const onNotePointerDown = (event: React.PointerEvent<HTMLButtonElement>, post: Post) => {
+    if (event.button !== 0 || post.id.startsWith("temp-")) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      id: post.id,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: post.x_pos,
+      originY: post.y_pos,
+      x: post.x_pos,
+      y: post.y_pos,
+      moved: false,
+    };
+    setDraggingId(post.id);
+  };
 
-    window.setTimeout(() => {
-      didPanBoardRef.current = false;
-    }, 0);
+  const onNotePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!dragRef.current || dragRef.current.pointerId !== event.pointerId) return;
+    moveDrag(event.clientX, event.clientY);
+  };
+
+  const onNotePointerUp = (event: React.PointerEvent<HTMLButtonElement>, post: Post) => {
+    if (!dragRef.current || dragRef.current.pointerId !== event.pointerId) return;
+    const moved = dragRef.current.moved;
+    void finishDrag();
+    if (!moved) setSelectedPost(post);
   };
 
   const handleDelete = async (postId: string) => {
-    if (profile?.role !== 'admin') return;
-    try {
-      const { error: deleteError } = await supabase.from('freedom_wall').delete().eq('id', postId);
-      if (deleteError) throw deleteError;
-      setPosts((prev) => prev.filter((p) => p.id !== postId));
-      setSelectedPost(null);
-    } catch (err: any) {
-      console.error('Error deleting:', err?.message || err);
-      alert('Failed to delete post: ' + (err?.message || err));
-    }
-  };
-
-  const handleNoteDragEnd = async (
-    postId: string,
-    previousPosition: { x: number; y: number },
-    _event: MouseEvent | TouchEvent | PointerEvent,
-    info: PanInfo
-  ) => {
-    const board = boardRef.current;
-    if (!board) return;
-
-    const boardRect = board.getBoundingClientRect();
-    if (!boardRect.width || !boardRect.height) return;
-
-    const deltaXPercent = (info.offset.x / boardRect.width) * 100;
-    const deltaYPercent = (info.offset.y / boardRect.height) * 100;
-    const nextPosition = {
-      x: clamp(previousPosition.x + deltaXPercent, 0, 92),
-      y: clamp(previousPosition.y + deltaYPercent, 0, 92),
-    };
-
-    if (
-      Math.abs(nextPosition.x - previousPosition.x) < 0.2 &&
-      Math.abs(nextPosition.y - previousPosition.y) < 0.2
-    ) {
+    if (profile?.role !== "admin") return;
+    const { error: deleteError } = await supabase.from("freedom_wall").delete().eq("id", postId);
+    if (deleteError) {
+      setError("Could not delete that note.");
       return;
     }
-
-    const roundedPosition = {
-      x: Math.round(nextPosition.x),
-      y: Math.round(nextPosition.y),
-    };
-
-    setPosts((prev) =>
-      prev.map((post) => (post.id === postId ? { ...post, x_pos: roundedPosition.x, y_pos: roundedPosition.y } : post))
-    );
-
-    const { error: updatePositionError } = await supabase
-      .from('freedom_wall')
-      .update({ x_pos: roundedPosition.x, y_pos: roundedPosition.y })
-      .eq('id', postId);
-
-    if (updatePositionError) {
-      console.error('Error updating note position:', updatePositionError.message);
-      setPosts((prev) =>
-        prev.map((post) =>
-          post.id === postId ? { ...post, x_pos: previousPosition.x, y_pos: previousPosition.y } : post
-        )
-      );
-      const isRlsError =
-        updatePositionError.code === '42501' ||
-        /row-level security|permission denied/i.test(updatePositionError.message || '');
-      setError(
-        isRlsError
-          ? 'Could not save note position right now.'
-          : 'Could not save note position right now.'
-      );
-      return;
-    }
-
-    setError(null);
-  };
-
-  const handleNoteDragStart = () => {
-    // Set this early so the release click is suppressed even if it fires before drag-end logic settles.
-    lastInteractionWasDragRef.current = true;
-  };
-
-  const clearDragOpenBlock = () => {
-    window.setTimeout(() => {
-      lastInteractionWasDragRef.current = false;
-    }, 250);
+    setPosts((prev) => prev.filter((post) => post.id !== postId));
+    setSelectedPost(null);
   };
 
   const handleVoteToClear = async () => {
     if (!user || hasVotedToClear || !isVoteFeatureAvailable) return;
-
     setIsVoting(true);
     setVoteError(null);
     try {
       const { error: voteInsertError } = await supabase
-        .from('freedom_wall_clear_votes')
-        .upsert({ user_id: user.id, created_at: new Date().toISOString() }, { onConflict: 'user_id' });
-
-      if (voteInsertError?.code === '42P01') {
+        .from("freedom_wall_clear_votes")
+        .upsert({ user_id: user.id, created_at: new Date().toISOString() }, { onConflict: "user_id" });
+      if (voteInsertError?.code === "42P01") {
         setIsVoteFeatureAvailable(false);
-        setVoteError('Clear-vote is temporarily unavailable.');
         return;
       }
-
       if (voteInsertError) throw voteInsertError;
       await fetchClearVotes();
-    } catch (err: any) {
-      console.error('Error voting to clear wall:', err?.message || err);
-      setVoteError('Could not submit your vote right now.');
+    } catch (err: unknown) {
+      console.error("Error voting to clear wall:", err);
+      setVoteError("Could not submit your vote right now.");
     } finally {
       setIsVoting(false);
     }
   };
 
   const handleAdminClearAll = async () => {
-    if (profile?.role !== 'admin') return;
-
-    const confirmed = confirm('Clear all Freedom Wall notes now? This cannot be undone.');
-    if (!confirmed) return;
-
+    if (profile?.role !== "admin") return;
+    if (!confirm("Clear all Freedom Wall notes now? This cannot be undone.")) return;
     setIsClearing(true);
     setVoteError(null);
     try {
-      const postIds = posts.map((post) => post.id);
+      const postIds = posts.map((post) => post.id).filter((id) => !id.startsWith("temp-"));
       if (postIds.length > 0) {
-        const { error: deletePostsError } = await supabase
-          .from('freedom_wall')
-          .delete()
-          .in('id', postIds);
-
+        const { error: deletePostsError } = await supabase.from("freedom_wall").delete().in("id", postIds);
         if (deletePostsError) throw deletePostsError;
       }
-
-      const { error: resetVotesError } = await supabase
-        .from('freedom_wall_clear_votes')
-        .delete()
-        .not('user_id', 'is', null);
-
-      if (resetVotesError && resetVotesError.code !== '42P01') {
-        throw resetVotesError;
-      }
-
+      await supabase.from("freedom_wall_clear_votes").delete().not("user_id", "is", null);
       setPosts([]);
       setClearVoteCount(0);
       setHasVotedToClear(false);
       setSelectedPost(null);
-    } catch (err: any) {
-      console.error('Error clearing Freedom Wall:', err?.message || err);
-      setVoteError('Could not clear the wall right now.');
+    } catch (err: unknown) {
+      console.error("Error clearing Freedom Wall:", err);
+      setVoteError("Could not clear the wall right now.");
     } finally {
       setIsClearing(false);
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" />
-      </div>
-    );
-  }
-
   const corkStyle: React.CSSProperties = {
     backgroundColor: "#c9894a",
     backgroundImage:
       "radial-gradient(circle at 18% 22%, rgba(255,236,210,0.45) 0 1px, transparent 1.5px), radial-gradient(circle at 74% 68%, rgba(92,48,16,0.25) 0 1px, transparent 1.5px), linear-gradient(165deg, #e7bc86 0%, #d09255 46%, #c07a3d 100%)",
-    backgroundSize: "17px 17px, 23px 23px, auto",
+    backgroundSize: "18px 18px, 26px 26px, auto",
   };
 
-  const renderBoard = (expanded: boolean) => (
-    <div
-      className={
-        expanded
-          ? "absolute inset-x-0 top-0 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] overflow-hidden border-y-[10px] border-[#7a4e2d] shadow-2xl"
-          : "relative min-h-[68dvh] overflow-hidden rounded-[1.35rem] border-[10px] border-[#7a4e2d] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28),0_16px_40px_rgba(90,48,16,0.18)] sm:min-h-[640px]"
-      }
-      style={corkStyle}
-    >
-      {!expanded && (
-        <button
-          type="button"
-          onClick={() => setIsMobileBoardExpanded(true)}
-          className="absolute right-3 top-3 z-30 inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[#142033]/75 px-3 text-xs font-semibold text-white sm:hidden"
-        >
-          <Maximize2 className="h-3.5 w-3.5" />
-          Full wall
-        </button>
-      )}
-
-      {expanded && (
-        <button
-          type="button"
-          onClick={() => setIsMobileBoardExpanded(false)}
-          className="absolute right-3 top-[calc(0.75rem+env(safe-area-inset-top))] z-30 inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[#142033]/75 px-3 text-xs font-semibold text-white sm:hidden"
-          aria-label="Close the full wall"
-        >
-          <Minimize2 className="h-3.5 w-3.5" />
-          Close
-        </button>
-      )}
-
-      <div
-        ref={boardViewportRef}
-        className={`absolute inset-0 overflow-auto ${
-          expanded ? `${isPanningBoard ? "cursor-grabbing" : "cursor-grab"} touch-none` : ""
-        }`}
-        onPointerDown={handleBoardViewportPointerDown}
-        onPointerMove={handleBoardViewportPointerMove}
-        onPointerUp={handleBoardViewportPointerUp}
-        onPointerCancel={handleBoardViewportPointerUp}
-      >
-        <div
-          ref={boardRef}
-          className={`relative h-full w-full ${expanded ? "" : "min-h-[68dvh] sm:min-h-[640px]"}`}
-        >
-          {posts.map((post) => {
-            const rotateDeg = post.id ? (post.id.charCodeAt(0) % 7) - 3 : 0;
-            return (
-              <div
-                key={post.id}
-                className="absolute"
-                style={{
-                  top: `${post.y_pos}%`,
-                  left: `${post.x_pos}%`,
-                  transform: `translate(-50%, -50%) rotate(${rotateDeg}deg)`,
-                }}
-              >
-              <motion.div
-                layoutId={`post-${post.id}`}
-                data-note-card="true"
-                data-note-id={post.id}
-                onClick={() => {
-                  if (lastInteractionWasDragRef.current) return;
-                  setSelectedPost(post);
-                }}
-                drag
-                onDragStart={handleNoteDragStart}
-                dragConstraints={boardRef}
-                dragMomentum={false}
-                dragElastic={0}
-                dragSnapToOrigin
-                onDragEnd={(event, info) => {
-                  handleNoteDragEnd(post.id, { x: post.x_pos, y: post.y_pos }, event, info);
-                  clearDragOpenBlock();
-                }}
-                className="flex h-36 w-36 cursor-pointer flex-col overflow-hidden rounded-[2px] p-3 shadow-[0_10px_18px_rgba(70,36,12,0.22)] sm:h-40 sm:w-40 sm:p-3.5"
-                style={{ backgroundColor: getPostColor(post) }}
-                whileHover={reduceMotion ? undefined : { scale: 1.04, zIndex: 10 }}
-              >
-                <div className="absolute left-1/2 top-2 h-3 w-3 -translate-x-1/2 rounded-full border border-red-700 bg-red-500 shadow-sm">
-                  <div className="absolute left-[2px] top-[2px] h-1 w-1 rounded-full bg-white/70" />
-                </div>
-                <p className="mt-4 line-clamp-5 font-[family-name:var(--font-note)] text-[1.2rem] leading-tight text-[#142033]">
-                  {post.content}
-                </p>
-                <p className="mt-auto truncate pt-2 text-[11px] font-semibold text-[#142033]/70">
-                  {post.is_anonymous ? "Anonymous" : post.author_name}
-                </p>
-              </motion.div>
-              </div>
-            );
-          })}
-
-          {posts.length === 0 && !isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center p-6">
-              <div className="max-w-xs rounded-2xl bg-white/85 px-6 py-6 text-center text-[#5a3418] shadow-sm">
-                <p className="text-lg font-semibold">The wall is open</p>
-                <p className="mt-1 text-sm leading-relaxed">Pin the first note. It can have your name, or none at all.</p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-
   return (
-    <div className="flex flex-col gap-5">
-      {isRefreshing ? <p className="text-sm text-[#5c6b7a]">Refreshing notes</p> : null}
-
-      <div>
-        {!isMobileBoardExpanded && renderBoard(false)}
-        {isMounted &&
-          isMobileBoardExpanded &&
-          createPortal(
-            <div className="fixed inset-0 z-[100] sm:hidden">
-              <div className="absolute inset-0 bg-[#142033]/55" />
-              {renderBoard(true)}
-            </div>,
-            document.body
-          )}
-      </div>
-
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm leading-relaxed text-[var(--muted)]">
-          {posts.length} {posts.length === 1 ? "note" : "notes"} on the wall. Drag a note to move it.
-        </p>
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-[1.65rem] font-semibold tracking-tight sm:text-4xl">Freedom Wall</h1>
+          <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
+            {posts.length} {posts.length === 1 ? "note" : "notes"}. Drag one to move it. Tap it to read it.
+          </p>
+        </div>
         {user ? (
           <button
             type="button"
@@ -702,212 +440,190 @@ export default function FreedomWall() {
               setError(null);
               setComposerOpen(true);
             }}
-            className="fixed inset-x-5 bottom-[calc(5.35rem+env(safe-area-inset-bottom))] z-30 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(29,79,145,0.28)] transition hover:bg-[#2460ad] active:scale-[0.98] sm:static sm:inset-auto sm:z-auto sm:w-auto sm:shadow-sm"
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-white"
           >
             <PenLine className="h-4 w-4" />
-            Pin a note
+            Pin
           </button>
         ) : null}
       </div>
 
       {isVoteFeatureAvailable ? (
-        <div className="mb-16 flex flex-col gap-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-4 sm:mb-0 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <div>
-            <p className="text-sm font-semibold text-[var(--ink)]">
-              Clear votes, {clearVoteCount} of {CLEAR_VOTE_TARGET}
-            </p>
-            <div className="mt-2 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-[var(--quiet)]">
-              <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${clearProgress}%` }} />
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <p className="text-sm font-semibold text-[var(--muted)]">
+            Clear votes {clearVoteCount} of {CLEAR_VOTE_TARGET}
+          </p>
+          <div className="h-1.5 w-28 overflow-hidden rounded-full bg-[var(--quiet)]">
+            <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${clearProgress}%` }} />
+          </div>
+          <button
+            type="button"
+            onClick={handleVoteToClear}
+            disabled={isVoting || hasVotedToClear || !user}
+            className="min-h-9 rounded-full border border-[var(--line)] px-3 text-sm font-semibold disabled:opacity-60"
+          >
+            {hasVotedToClear ? "Vote counted" : isVoting ? "Sending" : "Vote to clear"}
+          </button>
+          {profile?.role === "admin" ? (
+            <button
+              type="button"
+              onClick={handleAdminClearAll}
+              disabled={isClearing || posts.length === 0}
+              className="min-h-9 rounded-full bg-[#9f2d3a] px-3 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {isClearing ? "Clearing" : "Clear wall"}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {voteError ? <p className="text-sm text-[#9f2d3a]">{voteError}</p> : null}
+      {error ? <p className="text-sm text-[#9f2d3a]">{error}</p> : null}
+
+      <div
+        ref={boardRef}
+        className="relative min-h-0 flex-1 overflow-hidden rounded-[1.5rem] border-[12px] border-[#7a4e2d] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)]"
+        style={corkStyle}
+      >
+        {isLoading ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[#5a3418]" />
+          </div>
+        ) : null}
+
+        {!isLoading && posts.length === 0 ? (
+          <div className="absolute inset-0 flex items-center justify-center p-6">
+            <div className="max-w-xs rounded-2xl bg-white/90 px-6 py-6 text-center text-[#5a3418]">
+              <p className="text-lg font-semibold">The wall is open</p>
+              <p className="mt-1 text-sm leading-relaxed">Pin the first note. It can have your name, or none at all.</p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+        ) : null}
+
+        {posts.map((post) => {
+          const rotate = post.id ? (post.id.charCodeAt(0) % 7) - 3 : 0;
+          const dragging = draggingId === post.id;
+          return (
             <button
+              key={post.id}
               type="button"
-              onClick={handleVoteToClear}
-              disabled={isVoting || hasVotedToClear || !user}
-              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--line)] bg-[var(--quiet)] px-4 text-sm font-semibold text-[var(--ink)] transition hover:bg-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {hasVotedToClear ? "Vote counted" : isVoting ? "Sending vote" : "Vote to clear"}
-            </button>
-            {profile?.role === "admin" ? (
-              <button
-                type="button"
-                onClick={handleAdminClearAll}
-                disabled={isClearing || posts.length === 0}
-                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#9f2d3a] px-4 text-sm font-semibold text-white transition hover:bg-[#872533] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isClearing ? "Clearing" : "Clear wall"}
-              </button>
-            ) : null}
-          </div>
-        </div>
-      ) : (
-        <p className="text-sm text-[#8a5a22]">Clear votes are unavailable right now.</p>
-      )}
-
-      {voteError ? <p className="text-sm text-[#9f2d3a]">{voteError}</p> : null}
-
-      {composerOpen &&
-        createPortal(
-          <div className="fixed inset-0 z-[120] flex items-end justify-center bg-[#142033]/45 p-0 pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:items-center sm:p-6 sm:pb-6">
-            <button
-              type="button"
-              className="absolute inset-0 cursor-default"
-              aria-label="Close the note composer"
-              onClick={() => setComposerOpen(false)}
-            />
-            <form
-              onSubmit={handleSubmit}
-              className="relative z-10 w-full max-w-lg rounded-t-[1.5rem] border border-[var(--line)] bg-[var(--card)] p-5 text-[var(--ink)] shadow-2xl sm:rounded-[1.5rem] sm:p-6"
-            >
-              <div className="mb-4 flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-xl font-semibold text-[var(--ink)]">Pin a note</h2>
-                  <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
-                    Short thoughts work best. Unsigned notes are the usual way.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setComposerOpen(false)}
-                  className="rounded-full p-2 text-[var(--muted)] hover:bg-[var(--surface)]"
-                  aria-label="Close"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <label htmlFor="content" className="mb-2 block text-sm font-semibold text-[var(--ink)]">
-                Your note
-              </label>
-              <textarea
-                id="content"
-                rows={4}
-                placeholder="Write it the way you would say it"
-                className="w-full resize-none rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-base text-[var(--ink)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                disabled={isSubmitting}
-                maxLength={2000}
-              />
-
-              <div className="mt-4 flex flex-wrap gap-2" role="radiogroup" aria-label="Note color">
-                {NOTE_COLORS.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    role="radio"
-                    aria-checked={noteColor === color}
-                    aria-label={`Note color ${color}`}
-                    onClick={() => setNoteColor(color)}
-                    className={`h-9 w-9 rounded-full border-2 ${
-                      noteColor === color ? "border-[#142033]" : "border-white"
-                    }`}
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
-              </div>
-
-              <label className="mt-4 flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-[#d9d1c7] text-[#1d4f91]"
-                  checked={isAnonymous}
-                  onChange={(e) => setIsAnonymous(e.target.checked)}
-                  disabled={isSubmitting}
-                />
-                Leave it unsigned
-              </label>
-
-              {error ? <p className="mt-3 text-sm text-[#9f2d3a]">{error}</p> : null}
-
-              <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={() => setComposerOpen(false)}
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--ink)]"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-white disabled:opacity-60"
-                >
-                  {isSubmitting ? "Pinning" : "Pin note"}
-                </button>
-              </div>
-            </form>
-          </div>,
-          document.body
-        )}
-
-      <AnimatePresence>
-        {selectedPost && (
-          <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-900/60 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 cursor-pointer"
-              onClick={() => setSelectedPost(null)}
-            />
-
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 16 }}
-              transition={{ duration: 0.18 }}
-              className="relative z-10 flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-2xl shadow-2xl sm:max-h-[80vh] sm:max-w-md sm:rounded-sm"
+              data-note-card="true"
+              data-note-id={post.id}
+              onPointerDown={(event) => onNotePointerDown(event, post)}
+              onPointerMove={onNotePointerMove}
+              onPointerUp={(event) => onNotePointerUp(event, post)}
+              onPointerCancel={(event) => onNotePointerUp(event, post)}
+              className={`absolute flex w-[clamp(12.5rem,54%,16.5rem)] touch-none select-none flex-col rounded-[2px] p-4 text-left shadow-[0_14px_24px_rgba(70,36,12,0.24)] ${
+                dragging ? "z-30 scale-[1.03] cursor-grabbing" : "z-10 cursor-grab"
+              }`}
               style={{
-                backgroundColor: getPostColor(selectedPost),
+                top: `${post.y_pos}%`,
+                left: `${post.x_pos}%`,
+                backgroundColor: getPostColor(post),
+                transform: `translate(-50%, -50%) rotate(${dragging ? 0 : rotate}deg)`,
+                minHeight: "11.5rem",
               }}
             >
-              <div className="sticky top-0 z-10 flex justify-end gap-2 bg-black/10 px-3 py-3 backdrop-blur-sm">
-                {profile?.role === 'admin' && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(selectedPost.id);
-                    }}
-                    className="rounded-full p-2 text-black/60 transition-colors hover:bg-black/10 hover:text-red-600 focus:outline-none"
-                    title="Delete Post"
-                  >
-                    <Trash2 size={20} />
-                  </button>
-                )}
-                <button
-                  onClick={() => setSelectedPost(null)}
-                  className="rounded-full p-2 text-black/70 transition-colors hover:bg-black/10 hover:text-black focus:outline-none"
-                  title="Close"
-                >
-                  <X size={20} />
-                </button>
-              </div>
+              <span className="absolute left-1/2 top-2 h-3.5 w-3.5 -translate-x-1/2 rounded-full border border-red-700 bg-red-500 shadow-sm" />
+              <span className="mt-4 line-clamp-8 font-[family-name:var(--font-note)] text-[1.55rem] leading-[1.05] text-[#142033] sm:text-[1.7rem]">
+                {post.content}
+              </span>
+              <span className="mt-auto truncate pt-3 text-xs font-semibold text-[#142033]/70">
+                {post.is_anonymous ? "Anonymous" : post.author_name}
+              </span>
+            </button>
+          );
+        })}
+      </div>
 
-              <div className="flex-1 overflow-y-auto px-5 pb-5 pt-2 sm:px-8 sm:pb-8 sm:pt-4">
-                <p className="text-lg font-medium leading-relaxed text-black/90 whitespace-pre-wrap sm:text-xl">
+      {isMounted && composerOpen
+        ? createPortal(
+            <div className="fixed inset-0 z-[120] flex items-end justify-center bg-[#142033]/50 sm:items-center sm:p-6">
+              <button type="button" className="absolute inset-0" aria-label="Close the note composer" onClick={() => setComposerOpen(false)} />
+              <form
+                onSubmit={handleSubmit}
+                className="relative z-10 max-h-[min(92dvh,720px)] w-full max-w-lg overflow-y-auto rounded-t-[1.5rem] border border-[var(--line)] bg-[var(--card)] p-5 text-[var(--ink)] shadow-2xl sm:rounded-[1.5rem] sm:p-6"
+              >
+                <div className="mb-4 flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-semibold">Pin a note</h2>
+                    <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">Short thoughts work best. Unsigned notes are the usual way.</p>
+                  </div>
+                  <button type="button" onClick={() => setComposerOpen(false)} className="rounded-full p-2 text-[var(--muted)]" aria-label="Close">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <label htmlFor="content" className="mb-2 block text-sm font-semibold">
+                  Your note
+                </label>
+                <textarea
+                  id="content"
+                  rows={5}
+                  placeholder="Write it the way you would say it"
+                  className="w-full resize-none rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-base outline-none placeholder:text-[color-mix(in_srgb,var(--muted)_45%,transparent)] focus:border-[var(--accent)]"
+                  value={content}
+                  onChange={(event) => setContent(event.target.value)}
+                  disabled={isSubmitting}
+                  maxLength={2000}
+                />
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {NOTE_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      aria-label={`Note color ${color}`}
+                      onClick={() => setNoteColor(color)}
+                      className={`h-10 w-10 rounded-full border-2 ${noteColor === color ? "border-[#142033]" : "border-white"}`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+                <label className="mt-4 flex items-center gap-2 text-sm font-medium">
+                  <input type="checkbox" className="h-4 w-4" checked={isAnonymous} onChange={(event) => setIsAnonymous(event.target.checked)} />
+                  Leave it unsigned
+                </label>
+                <div className="mt-5 flex gap-2">
+                  <button type="button" onClick={() => setComposerOpen(false)} className="min-h-11 flex-1 rounded-xl border border-[var(--line)] text-sm font-semibold">
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={isSubmitting} className="min-h-11 flex-1 rounded-xl bg-[var(--accent)] text-sm font-semibold text-white disabled:opacity-60">
+                    {isSubmitting ? "Pinning" : "Pin note"}
+                  </button>
+                </div>
+              </form>
+            </div>,
+            document.body
+          )
+        : null}
+
+      {isMounted && selectedPost
+        ? createPortal(
+            <div className="fixed inset-0 z-[110] flex items-end justify-center bg-[#142033]/55 sm:items-center sm:p-6">
+              <button type="button" className="absolute inset-0" aria-label="Close note" onClick={() => setSelectedPost(null)} />
+              <div
+                className="relative z-10 max-h-[min(88dvh,720px)] w-full max-w-md overflow-y-auto rounded-t-[1.5rem] p-5 shadow-2xl sm:rounded-[1.25rem] sm:p-7"
+                style={{ backgroundColor: getPostColor(selectedPost) }}
+              >
+                <div className="mb-4 flex justify-end gap-2">
+                  {profile?.role === "admin" ? (
+                    <button type="button" onClick={() => handleDelete(selectedPost.id)} className="rounded-full bg-black/10 p-2" aria-label="Delete note">
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  ) : null}
+                  <button type="button" onClick={() => setSelectedPost(null)} className="rounded-full bg-black/10 p-2" aria-label="Close">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <p className="whitespace-pre-wrap font-[family-name:var(--font-note)] text-[2rem] leading-tight text-[#142033]">
                   {selectedPost.content}
                 </p>
-
-                <div className="mt-8 flex items-center justify-between border-t border-black/20 pt-4 text-sm text-black/70">
-                  <span className="flex items-center gap-2 font-bold">
-                    <span className="h-2 w-2 rounded-full bg-black/20" />
-                    {selectedPost.is_anonymous ? 'Anonymous' : selectedPost.author_name}
-                  </span>
-                  <span className="opacity-80">
-                    {new Date(selectedPost.created_at).toLocaleDateString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
-                  </span>
-                </div>
+                <p className="mt-6 text-sm font-semibold text-[#142033]/70">
+                  {selectedPost.is_anonymous ? "Anonymous" : selectedPost.author_name}
+                </p>
               </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }
