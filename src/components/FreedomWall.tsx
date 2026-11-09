@@ -278,14 +278,6 @@ export default function FreedomWall() {
     const previousBodyOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
-    // Start near the center so users can pan around in fullscreen mode.
-    window.requestAnimationFrame(() => {
-      const viewport = boardViewportRef.current;
-      if (!viewport) return;
-      viewport.scrollLeft = Math.max(0, (viewport.scrollWidth - viewport.clientWidth) / 2);
-      viewport.scrollTop = Math.max(0, (viewport.scrollHeight - viewport.clientHeight) / 3);
-    });
-
     return () => {
       document.body.style.overflow = previousBodyOverflow;
       boardPanStartRef.current = null;
@@ -619,16 +611,22 @@ export default function FreedomWall() {
       >
         <div
           ref={boardRef}
-          className={`relative ${
-            expanded ? "h-[155%] min-h-[760px] w-[165%] min-w-[760px]" : "h-full min-h-[68dvh] w-full sm:min-h-[640px]"
-          }`}
+          className={`relative h-full w-full ${expanded ? "" : "min-h-[68dvh] sm:min-h-[640px]"}`}
         >
           {posts.map((post) => {
             const rotateDeg = post.id ? (post.id.charCodeAt(0) % 7) - 3 : 0;
             return (
+              <div
+                key={post.id}
+                className="absolute"
+                style={{
+                  top: `${post.y_pos}%`,
+                  left: `${post.x_pos}%`,
+                  transform: `translate(-50%, -50%) rotate(${rotateDeg}deg)`,
+                }}
+              >
               <motion.div
                 layoutId={`post-${post.id}`}
-                key={post.id}
                 data-note-card="true"
                 data-note-id={post.id}
                 onClick={() => {
@@ -645,13 +643,8 @@ export default function FreedomWall() {
                   handleNoteDragEnd(post.id, { x: post.x_pos, y: post.y_pos }, event, info);
                   clearDragOpenBlock();
                 }}
-                className="absolute flex h-36 w-36 cursor-pointer flex-col overflow-hidden rounded-[2px] p-3 shadow-[0_10px_18px_rgba(70,36,12,0.22)] sm:h-40 sm:w-40 sm:p-3.5"
-                style={{
-                  top: `${post.y_pos}%`,
-                  left: `${post.x_pos}%`,
-                  backgroundColor: getPostColor(post),
-                  rotate: `${rotateDeg}deg`,
-                }}
+                className="flex h-36 w-36 cursor-pointer flex-col overflow-hidden rounded-[2px] p-3 shadow-[0_10px_18px_rgba(70,36,12,0.22)] sm:h-40 sm:w-40 sm:p-3.5"
+                style={{ backgroundColor: getPostColor(post) }}
                 whileHover={reduceMotion ? undefined : { scale: 1.04, zIndex: 10 }}
               >
                 <div className="absolute left-1/2 top-2 h-3 w-3 -translate-x-1/2 rounded-full border border-red-700 bg-red-500 shadow-sm">
@@ -664,6 +657,7 @@ export default function FreedomWall() {
                   {post.is_anonymous ? "Anonymous" : post.author_name}
                 </p>
               </motion.div>
+              </div>
             );
           })}
 
@@ -698,7 +692,7 @@ export default function FreedomWall() {
       </div>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm leading-relaxed text-[#4d5d73]">
+        <p className="text-sm leading-relaxed text-[var(--muted)]">
           {posts.length} {posts.length === 1 ? "note" : "notes"} on the wall. Drag a note to move it.
         </p>
         {user ? (
@@ -708,7 +702,7 @@ export default function FreedomWall() {
               setError(null);
               setComposerOpen(true);
             }}
-            className="fixed inset-x-5 bottom-[calc(5.35rem+env(safe-area-inset-bottom))] z-30 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#1d4f91] px-4 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(29,79,145,0.28)] transition hover:bg-[#2460ad] active:scale-[0.98] sm:static sm:inset-auto sm:z-auto sm:w-auto sm:shadow-sm"
+            className="fixed inset-x-5 bottom-[calc(5.35rem+env(safe-area-inset-bottom))] z-30 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(29,79,145,0.28)] transition hover:bg-[#2460ad] active:scale-[0.98] sm:static sm:inset-auto sm:z-auto sm:w-auto sm:shadow-sm"
           >
             <PenLine className="h-4 w-4" />
             Pin a note
@@ -717,13 +711,13 @@ export default function FreedomWall() {
       </div>
 
       {isVoteFeatureAvailable ? (
-        <div className="mb-16 flex flex-col gap-4 rounded-2xl border border-[#e6dfd6] bg-white px-4 py-4 sm:mb-0 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="mb-16 flex flex-col gap-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-4 sm:mb-0 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <div>
-            <p className="text-sm font-semibold text-[#142033]">
+            <p className="text-sm font-semibold text-[var(--ink)]">
               Clear votes, {clearVoteCount} of {CLEAR_VOTE_TARGET}
             </p>
-            <div className="mt-2 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-[#efe8e0]">
-              <div className="h-full rounded-full bg-[#1d4f91]" style={{ width: `${clearProgress}%` }} />
+            <div className="mt-2 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-[var(--quiet)]">
+              <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${clearProgress}%` }} />
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -731,7 +725,7 @@ export default function FreedomWall() {
               type="button"
               onClick={handleVoteToClear}
               disabled={isVoting || hasVotedToClear || !user}
-              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#d9d1c7] bg-[#f7f4ef] px-4 text-sm font-semibold text-[#142033] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--line)] bg-[var(--quiet)] px-4 text-sm font-semibold text-[var(--ink)] transition hover:bg-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {hasVotedToClear ? "Vote counted" : isVoting ? "Sending vote" : "Vote to clear"}
             </button>
@@ -764,33 +758,33 @@ export default function FreedomWall() {
             />
             <form
               onSubmit={handleSubmit}
-              className="relative z-10 w-full max-w-lg rounded-t-[1.5rem] border border-[#e6dfd6] bg-[#f7f4ef] p-5 shadow-2xl sm:rounded-[1.5rem] sm:p-6"
+              className="relative z-10 w-full max-w-lg rounded-t-[1.5rem] border border-[var(--line)] bg-[var(--card)] p-5 text-[var(--ink)] shadow-2xl sm:rounded-[1.5rem] sm:p-6"
             >
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-xl font-semibold text-[#142033]">Pin a note</h2>
-                  <p className="mt-1 text-sm leading-relaxed text-[#4d5d73]">
+                  <h2 className="text-xl font-semibold text-[var(--ink)]">Pin a note</h2>
+                  <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
                     Short thoughts work best. Unsigned notes are the usual way.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setComposerOpen(false)}
-                  className="rounded-full p-2 text-[#4d5d73] hover:bg-white"
+                  className="rounded-full p-2 text-[var(--muted)] hover:bg-[var(--surface)]"
                   aria-label="Close"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
 
-              <label htmlFor="content" className="mb-2 block text-sm font-semibold text-[#142033]">
+              <label htmlFor="content" className="mb-2 block text-sm font-semibold text-[var(--ink)]">
                 Your note
               </label>
               <textarea
                 id="content"
                 rows={4}
                 placeholder="Write it the way you would say it"
-                className="w-full resize-none rounded-2xl border border-[#d9d1c7] bg-white px-4 py-3 text-base text-[#142033] outline-none placeholder:text-[#8b97a6] focus:border-[#1d4f91] focus:ring-2 focus:ring-[#1d4f91]/20"
+                className="w-full resize-none rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-base text-[var(--ink)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 disabled={isSubmitting}
@@ -814,7 +808,7 @@ export default function FreedomWall() {
                 ))}
               </div>
 
-              <label className="mt-4 flex items-center gap-2 text-sm font-medium text-[#142033]">
+              <label className="mt-4 flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
                 <input
                   type="checkbox"
                   className="h-4 w-4 rounded border-[#d9d1c7] text-[#1d4f91]"
@@ -831,14 +825,14 @@ export default function FreedomWall() {
                 <button
                   type="button"
                   onClick={() => setComposerOpen(false)}
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#d9d1c7] bg-white px-4 text-sm font-semibold text-[#142033]"
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--ink)]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#1d4f91] px-4 text-sm font-semibold text-white disabled:opacity-60"
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-white disabled:opacity-60"
                 >
                   {isSubmitting ? "Pinning" : "Pin note"}
                 </button>

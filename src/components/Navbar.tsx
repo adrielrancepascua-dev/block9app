@@ -72,7 +72,7 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#e7e0d8] bg-[#f7f4ef]/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_rgba(20,32,51,0.08)] backdrop-blur-md md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--line)] bg-[var(--nav)] pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_rgba(20,32,51,0.08)] backdrop-blur-md md:hidden">
         <div className="mx-auto flex max-w-lg items-stretch justify-around px-2 pt-1.5">
           {navItems.map((item) => {
             const active = isActive(item.href);
@@ -85,12 +85,12 @@ export default function Navbar() {
               >
                 <span
                   className={`flex h-8 w-8 items-center justify-center rounded-full transition ${
-                    active ? "bg-[#1d4f91] text-white shadow-sm" : "text-[#5c6b7a]"
+                    active ? "bg-[var(--accent)] text-white shadow-sm" : "text-[var(--muted)]"
                   }`}
                 >
                   {item.icon}
                 </span>
-                <span className={`max-w-full truncate ${active ? "text-[#1d4f91]" : "text-[#5c6b7a]"}`}>
+                <span className={`max-w-full truncate ${active ? "text-[var(--accent-text)]" : "text-[var(--muted)]"}`}>
                   {item.shortLabel}
                 </span>
               </Link>
@@ -99,10 +99,10 @@ export default function Navbar() {
         </div>
       </nav>
 
-      <nav className="sticky top-0 z-40 hidden border-b border-[#e7e0d8] bg-[#f7f4ef]/92 backdrop-blur-md md:block">
+      <nav className="sticky top-0 z-40 hidden border-b border-[var(--line)] bg-[var(--nav)] backdrop-blur-md md:block">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between gap-6">
-            <Link href="/" className="text-xl font-semibold tracking-tight text-[#142033]">
+            <Link href="/" className="text-xl font-semibold tracking-tight text-[var(--ink)]">
               Block 9
             </Link>
 
@@ -113,8 +113,8 @@ export default function Navbar() {
                   href={item.href}
                   className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-semibold transition ${
                     isActive(item.href)
-                      ? "bg-[#1d4f91] text-white"
-                      : "text-[#4d5d73] hover:bg-white"
+                      ? "bg-[var(--accent)] text-white"
+                      : "text-[var(--muted)] hover:bg-[var(--surface)]"
                   }`}
                 >
                   {item.icon}
@@ -128,16 +128,16 @@ export default function Navbar() {
                 <img
                   src={profile.avatar_url}
                   alt=""
-                  className="h-9 w-9 rounded-full border border-[#e7e0d8] object-cover"
+                  className="h-9 w-9 rounded-full border border-[var(--line)] object-cover"
                 />
               ) : (
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1d4f91] text-sm font-semibold text-white">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-semibold text-white">
                   {(profile?.name?.trim()?.charAt(0) || "S").toUpperCase()}
                 </div>
               )}
               <div className="text-right">
-                <p className="text-sm font-semibold text-[#142033]">{profile?.name || "Student"}</p>
-                <p className="text-xs text-[#5c6b7a]">{profile?.role === "admin" ? "Admin" : "Student"}</p>
+                <p className="text-sm font-semibold text-[var(--ink)]">{profile?.name || "Student"}</p>
+                <p className="text-xs text-[var(--muted)]">{profile?.role === "admin" ? "Admin" : "Student"}</p>
               </div>
             </div>
           </div>

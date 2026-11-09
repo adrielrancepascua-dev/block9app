@@ -89,11 +89,11 @@ export default function AdminPage() {
       <div className="w-full space-y-6 sm:space-y-8">
         {/* Page Header */}
         <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl font-bold text-slate-800 drop-shadow-md dark:text-white sm:text-3xl">
-            Admin Dashboard
+          <h1 className="text-[1.85rem] font-semibold tracking-tight text-[var(--ink)] sm:text-4xl">
+            Classes
           </h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-200">
-            Manage schedules, create classes, and monitor attendance.
+          <p className="mt-2 max-w-xl text-base leading-relaxed text-[var(--muted)]">
+            Add a class in a few taps. Everyone sees it on the calendar.
           </p>
         </div>
 
@@ -103,10 +103,10 @@ export default function AdminPage() {
         {/* Existing Schedules List */}
         <div className="space-y-4">
           <div className="mb-4">
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-              All Schedules
+            <h2 className="text-2xl font-semibold tracking-tight text-[var(--ink)]">
+              On the calendar
             </h2>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            <p className="mt-1 text-sm text-[var(--muted)]">
               {schedules.length === 0
                 ? "No schedules created yet."
                 : `Showing ${schedules.length} schedule${
@@ -120,8 +120,8 @@ export default function AdminPage() {
               <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-300 border-t-blue-600 dark:border-white/20 dark:border-t-blue-500"></div>
             </div>
           ) : schedules.length === 0 ? (
-            <div className="rounded-xl border border-slate-200 bg-white/50 p-8 text-center text-slate-700 backdrop-blur-md dark:border-white/20 dark:bg-white/5 dark:text-white">
-              No schedules yet. Create one using the form above.
+            <div className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] px-6 py-8 text-center text-[var(--muted)]">
+              No classes yet. Add the first one above.
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
@@ -144,13 +144,13 @@ export default function AdminPage() {
                 return (
                   <div
                     key={schedule.id}
-                    className="relative flex flex-col gap-4 rounded-xl border border-slate-200 bg-white/80 p-5 shadow-lg backdrop-blur-md transition hover:bg-white dark:border-white/20 dark:bg-slate-900/80 dark:hover:bg-slate-900"
+                    className="relative flex flex-col gap-4 rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] p-5 text-[var(--ink)]"
                   >
                     {/* Delete Button */}
                     <button
                       onClick={() => handleDeleteSchedule(schedule.id)}
                       disabled={deleting === schedule.id}
-                      className="absolute right-4 top-4 rounded p-1 text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+                      className="absolute right-4 top-4 rounded-full p-2 text-[var(--muted)] transition hover:bg-[var(--quiet)] hover:text-[#9f2d3a] disabled:opacity-50"
                       title="Delete Schedule"
                     >
                       <Trash2 className="h-5 w-5" />
@@ -158,16 +158,15 @@ export default function AdminPage() {
 
                     {/* Subject */}
                     <div>
-                      <h3 className="pr-10 text-xl font-bold text-slate-900 dark:text-white">
+                      <h3 className="pr-10 text-xl font-semibold text-[var(--ink)]">
                         {schedule.subject}
                       </h3>
                     </div>
 
                     {/* Details */}
-                    <div className="flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300">
-                      {/* Date */}
+                    <div className="flex flex-col gap-2 text-sm text-[var(--muted)]">
                       <div>
-                        <p className="font-medium text-slate-500 dark:text-slate-400">
+                        <p className="font-medium text-[var(--muted)]">
                           Date
                         </p>
                         <p>{scheduleDate}</p>

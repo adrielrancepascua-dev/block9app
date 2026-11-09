@@ -35,12 +35,12 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="relative min-h-screen text-slate-50">
+    <div className="relative min-h-[100dvh] text-[var(--ink)]">
       <div
         className="fixed inset-0 -z-20 bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: `url('${bgUrl}')` }}
       />
-      <div className="fixed inset-0 -z-10 bg-slate-900/35" />
+      <div className="fixed inset-0 -z-10 bg-[#07111f]/22" />
 
       <div className="mx-auto w-full max-w-screen-2xl px-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] pt-5 md:px-6 md:pb-6 md:pt-6">
         <div className="h-[calc(100dvh-8.75rem)] md:h-[calc(100dvh-7.25rem)]">

@@ -35,10 +35,10 @@ export default function FreedomWallPage() {
     <ProfileLayout surface="paper" containerClassName="max-w-6xl">
       <div className="w-full">
         <header className="mb-6 sm:mb-8">
-          <h1 className="text-[1.85rem] font-semibold tracking-tight text-[#142033] sm:text-4xl">
+          <h1 className="text-[1.85rem] font-semibold tracking-tight text-[var(--ink)] sm:text-4xl">
             Freedom Wall
           </h1>
-          <p className="mt-2 max-w-xl text-base leading-relaxed text-[#4d5d73]">
+          <p className="mt-2 max-w-xl text-base leading-relaxed text-[var(--muted)]">
             A cork board for the block. Leave a short note, with your name or without it.
           </p>
         </header>

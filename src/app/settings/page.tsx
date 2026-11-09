@@ -3,14 +3,17 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/SupabaseAuthContext";
+import { useTheme, type ThemeChoice } from "@/context/ThemeContext";
+import { CLASS_PHOTO } from "@/utils/brand";
 import ProfileLayout from "@/components/ProfileLayout";
 import { supabase } from "@/utils/supabase";
 import { toast } from "sonner";
-import { Eye, ImageIcon, Save, Upload, UserRound, X } from "lucide-react";
+import { ImageIcon, Save, Upload, UserRound, X } from "lucide-react";
 import AppLoading from "@/components/AppLoading";
 
 export default function SettingsPage() {
   const { user, profile, loading } = useAuth();
+  const { theme, setTheme } = useTheme();
   const router = useRouter();
 
   const [name, setName] = useState("");
@@ -211,182 +214,120 @@ export default function SettingsPage() {
     );
   }
 
+  const backgroundPreview = backgroundPreviewUrl || (customBgUrl.trim().startsWith("http") ? customBgUrl : CLASS_PHOTO);
+  const themeOptions: { id: ThemeChoice; label: string }[] = [
+    { id: "light", label: "Light" },
+    { id: "dark", label: "Dark" },
+    { id: "system", label: "Match phone" },
+  ];
+
   return (
     <ProfileLayout customBgUrl={layoutPreviewBackground}>
-      <div className="w-full max-w-2xl mx-auto space-y-6">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-800 drop-shadow-md dark:text-white">
-            Settings
-          </h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-200">
-            Update your profile information and customize your experience.
+      <div className="mx-auto w-full max-w-2xl space-y-5">
+        <header className="mb-2">
+          <h1 className="text-[1.85rem] font-semibold tracking-tight text-[var(--ink)] sm:text-4xl">Settings</h1>
+          <p className="mt-2 max-w-xl text-base leading-relaxed text-[var(--muted)]">
+            Your name, your photo, and how Block 9 looks.
           </p>
-        </div>
+        </header>
 
-        <div className="rounded-2xl border border-slate-200 bg-white/80 p-8 shadow-sm backdrop-blur-md dark:border-slate-700 dark:bg-slate-800/80">
-          <form className="space-y-6">
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Full Name
+        <section className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] p-5">
+          <h2 className="text-lg font-semibold text-[var(--ink)]">Appearance</h2>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {themeOptions.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => setTheme(option.id)}
+                className={`min-h-11 rounded-xl px-4 text-sm font-semibold ${
+                  theme === option.id
+                    ? "bg-[var(--accent)] text-white"
+                    : "border border-[var(--line)] bg-[var(--quiet)] text-[var(--ink)]"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] p-5">
+          <label htmlFor="name" className="block text-sm font-semibold text-[var(--ink)]">
+            Name
+          </label>
+          <input
+            id="name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="The name people see"
+            className="mt-2 w-full rounded-xl border border-[var(--line)] bg-[var(--card)] px-4 py-3 text-base text-[var(--ink)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
+          />
+
+          <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-[var(--line)] bg-[var(--quiet)]">
+              {resolvedAvatarPreview ? (
+                <img src={resolvedAvatarPreview} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <UserRound className="h-8 w-8 text-[var(--muted)]" />
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--quiet)] px-4 text-sm font-semibold text-[var(--ink)]">
+                <Upload className="h-4 w-4" />
+                Photo
+                <input type="file" accept="image/*" onChange={onAvatarFileChange} className="hidden" disabled={isSaving} />
               </label>
-              <input
-                id="name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Enter your full name"
-                className="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:ring-blue-900"
-              />
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                This is how your name appears across the app.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-white/70 p-4 dark:border-slate-700 dark:bg-slate-900/40">
-              <p className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">Profile Photo</p>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-slate-300 bg-slate-100 dark:border-slate-600 dark:bg-slate-800">
-                  {resolvedAvatarPreview ? (
-                    <img src={resolvedAvatarPreview} alt="Profile preview" className="h-full w-full object-cover" />
-                  ) : (
-                    <UserRound className="h-8 w-8 text-slate-500 dark:text-slate-400" />
-                  )}
-                </div>
-
-                <div className="flex-1 space-y-2">
-                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
-                    <Upload className="h-4 w-4" />
-                    Upload Photo
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={onAvatarFileChange}
-                      className="hidden"
-                      disabled={isSaving}
-                    />
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRemoveAvatar(true);
-                      clearAvatarSelection();
-                    }}
-                    disabled={isSaving || (!resolvedAvatarPreview && !avatarFile)}
-                    className="ml-2 inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                  >
-                    <X className="h-4 w-4" />
-                    Remove
-                  </button>
-
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Upload from your device. JPG, PNG, WEBP, and GIF are supported.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-white/70 p-4 dark:border-slate-700 dark:bg-slate-900/40">
-              <p className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">Background Image</p>
-
-              <div>
-                <label htmlFor="bgUrl" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Background URL
-                </label>
-                <input
-                  id="bgUrl"
-                  type="url"
-                  value={customBgUrl}
-                  onChange={(e) => setCustomBgUrl(e.target.value)}
-                  placeholder="https://example.com/image.jpg"
-                  className="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:ring-blue-900"
-                />
-              </div>
-
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
-                  <ImageIcon className="h-4 w-4" />
-                  Upload From Device
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={onBackgroundFileChange}
-                    className="hidden"
-                    disabled={isSaving}
-                  />
-                </label>
-
-                <button
-                  type="button"
-                  onClick={clearBackgroundSelection}
-                  disabled={!backgroundFile || isSaving}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                >
-                  <X className="h-4 w-4" />
-                  Clear Upload
-                </button>
-              </div>
-
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                You can use either a URL or an uploaded image. Uploaded file takes priority when saving.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => setShowPreview(!showPreview)}
-                disabled={isSaving || !resolvedBackgroundPreview}
-                className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                onClick={() => {
+                  setRemoveAvatar(true);
+                  clearAvatarSelection();
+                }}
+                disabled={isSaving || (!resolvedAvatarPreview && !avatarFile)}
+                className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-[var(--line)] px-4 text-sm font-semibold text-[var(--ink)] disabled:opacity-50"
               >
-                <Eye className="h-4 w-4" />
-                {showPreview ? "Hide Live Preview" : "Show Live Preview"}
+                <X className="h-4 w-4" />
+                Remove
               </button>
-
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={isSaving}
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400 dark:hover:bg-blue-700"
-              >
-                <Save className="h-4 w-4" />
-                {isSaving ? "Saving..." : "Save Settings"}
-              </button>
-            </div>
-          </form>
-        </div>
-
-        {showPreview && resolvedBackgroundPreview && (
-          <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-              Preview
-            </h2>
-            <div
-              className="relative h-64 rounded-2xl border border-slate-300 shadow-lg dark:border-slate-600"
-              style={{
-                backgroundImage: `url('${resolvedBackgroundPreview}')`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
-            >
-              {/* Blur overlay */}
-              <div className="absolute inset-0 rounded-2xl bg-white/10 backdrop-blur-md"></div>
-
-              {/* Content overlay for context */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-2xl p-6">
-                <div className="text-center">
-                  <p className="text-sm font-medium text-white drop-shadow-md">
-                    This is how your background will appear
-                  </p>
-                  <p className="text-xs text-white/80 drop-shadow-md">
-                    with the app glassmorphism overlay
-                  </p>
-                </div>
-              </div>
             </div>
           </div>
-        )}
+        </section>
 
+        <section className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] p-5">
+          <h2 className="text-lg font-semibold text-[var(--ink)]">Background</h2>
+          <div
+            className="mt-4 h-36 rounded-[1.2rem] border border-[var(--line)] bg-cover bg-center"
+            style={{ backgroundImage: `url('${backgroundPreview}')` }}
+          />
+          <div className="mt-4 flex flex-wrap gap-2">
+            <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--quiet)] px-4 text-sm font-semibold text-[var(--ink)]">
+              <ImageIcon className="h-4 w-4" />
+              Upload a photo
+              <input type="file" accept="image/*" onChange={onBackgroundFileChange} className="hidden" disabled={isSaving} />
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                clearBackgroundSelection();
+                setCustomBgUrl("");
+              }}
+              className="inline-flex min-h-11 items-center rounded-xl border border-[var(--line)] px-4 text-sm font-semibold text-[var(--ink)]"
+            >
+              Class photo
+            </button>
+          </div>
+        </section>
+
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={isSaving}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-white disabled:opacity-60"
+        >
+          <Save className="h-4 w-4" />
+          {isSaving ? "Saving" : "Save"}
+        </button>
       </div>
     </ProfileLayout>
   );

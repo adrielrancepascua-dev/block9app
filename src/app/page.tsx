@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import ProfileLayout from "@/components/ProfileLayout";
+import AdminPanel from "@/components/AdminPanel";
 import AttendanceToggle, { type AttendanceStatus } from "@/components/AttendanceToggle";
 import { supabase } from "@/utils/supabase";
 import { CalendarDays, Clock3, MapPin, X } from "lucide-react";
@@ -120,6 +121,7 @@ export default function Home() {
   } | null>(null);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [composerDate, setComposerDate] = useState<string | null>(null);
 
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
@@ -383,26 +385,34 @@ export default function Home() {
       <div className="w-full">
         <div className="mb-8 flex flex-col gap-5 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-[1.85rem] font-semibold tracking-tight text-[#142033] sm:text-4xl">
+            <h1 className="text-[1.85rem] font-semibold tracking-tight text-[var(--ink)] sm:text-4xl">
               Hi, {profile?.name || "Student"}
             </h1>
-            <p className="mt-2 max-w-md text-base leading-relaxed text-[#4d5d73]">
+            <p className="mt-2 max-w-md text-base leading-relaxed text-[var(--muted)]">
               Tap a day to see the room, the time, and who is going.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
             {profile?.role === "admin" && (
-              <button
-                onClick={() => router.push("/admin")}
-                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#1d4f91] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2460ad] active:scale-[0.98]"
-              >
-                Manage schedules
-              </button>
+              <>
+                <button
+                  onClick={() => setComposerDate(toDateKey(new Date()))}
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2460ad] active:scale-[0.98]"
+                >
+                  Add a class
+                </button>
+                <button
+                  onClick={() => router.push("/admin")}
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--ink)] shadow-sm transition hover:bg-[var(--quiet)] active:scale-[0.98]"
+                >
+                  All classes
+                </button>
+              </>
             )}
             <button
               onClick={signOut}
-              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#d9d1c7] bg-white px-4 text-sm font-semibold text-[#142033] shadow-sm transition hover:bg-[#f3eee8] active:scale-[0.98]"
+              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--ink)] shadow-sm transition hover:bg-[var(--quiet)] active:scale-[0.98]"
             >
               Sign out
             </button>
@@ -415,41 +425,41 @@ export default function Home() {
           </div>
         )}
 
-        <div className="rounded-[1.4rem] border border-[#e6dfd6] bg-white p-4 shadow-[0_1px_2px_rgba(20,32,51,0.04)] sm:p-6">
+        <div className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[0_1px_2px_rgba(20,32,51,0.04)] sm:p-6">
           <div className="mb-6 flex flex-col gap-4 sm:mb-7 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-center text-[1.7rem] font-semibold tracking-tight text-[#142033] sm:text-left sm:text-3xl">
+            <h2 className="text-center text-[1.7rem] font-semibold tracking-tight text-[var(--ink)] sm:text-left sm:text-3xl">
               {monthTitle}
             </h2>
             <div className="flex items-center justify-center gap-2 sm:justify-end">
               <button
                 type="button"
                 onClick={goToPreviousMonth}
-                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#d9d1c7] bg-[#f7f4ef] px-4 text-sm font-semibold text-[#142033] transition hover:bg-white active:scale-[0.98]"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--line)] bg-[var(--quiet)] px-4 text-sm font-semibold text-[var(--ink)] transition hover:bg-[var(--surface)] active:scale-[0.98]"
               >
                 Prev
               </button>
               <button
                 type="button"
                 onClick={goToCurrentMonth}
-                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#d9d1c7] bg-[#f7f4ef] px-4 text-sm font-semibold text-[#142033] transition hover:bg-white active:scale-[0.98]"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--line)] bg-[var(--quiet)] px-4 text-sm font-semibold text-[var(--ink)] transition hover:bg-[var(--surface)] active:scale-[0.98]"
               >
                 Today
               </button>
               <button
                 type="button"
                 onClick={goToNextMonth}
-                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#d9d1c7] bg-[#f7f4ef] px-4 text-sm font-semibold text-[#142033] transition hover:bg-white active:scale-[0.98]"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--line)] bg-[var(--quiet)] px-4 text-sm font-semibold text-[var(--ink)] transition hover:bg-[var(--surface)] active:scale-[0.98]"
               >
                 Next
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-7 overflow-hidden rounded-2xl border border-[#e6dfd6]">
+          <div className="grid grid-cols-7 overflow-hidden rounded-2xl border border-[var(--line)]">
             {WEEKDAYS.map((weekday) => (
               <div
                 key={weekday}
-                className="min-h-11 border-b border-r border-[#e6dfd6] bg-[#f3eee8] px-1 py-2.5 text-center text-[11px] font-semibold text-[#5c6b7a] last:border-r-0 sm:text-xs"
+                className="min-h-11 border-b border-r border-[var(--line)] bg-[var(--quiet)] px-1 py-2.5 text-center text-[11px] font-semibold text-[#5c6b7a] last:border-r-0 sm:text-xs"
               >
                 {weekday}
               </div>
@@ -463,17 +473,24 @@ export default function Home() {
               return (
                 <div
                   key={cell.key}
-                  className={`min-h-[4.75rem] border-b border-r border-[#efe8e0] p-1.5 sm:min-h-32 sm:p-2 ${
+                  onClick={() => {
+                    if (profile?.role === "admin" && daySchedules.length === 0) {
+                      setComposerDate(cell.key);
+                    }
+                  }}
+                  className={`min-h-[4.75rem] border-b border-r border-[var(--line)] p-1.5 sm:min-h-32 sm:p-2 ${
                     isLastCol ? "border-r-0" : ""
-                  } ${cell.inCurrentMonth ? "bg-white" : "bg-[#f7f4ef]"}`}
+                  } ${cell.inCurrentMonth ? "bg-[var(--surface)]" : "bg-[var(--quiet)]"} ${
+                    profile?.role === "admin" && daySchedules.length === 0 ? "cursor-pointer" : ""
+                  }`}
                 >
                   <div className="mb-1.5 flex items-center justify-between">
                     <span
                       className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-xs font-semibold ${
                         isToday
-                          ? "bg-[#1d4f91] text-white"
+                          ? "bg-[var(--accent)] text-white"
                           : cell.inCurrentMonth
-                          ? "text-[#142033]"
+                          ? "text-[var(--ink)]"
                           : "text-[#9aa6b2]"
                       }`}
                     >
@@ -487,7 +504,7 @@ export default function Home() {
                         type="button"
                         onClick={() => openDayEvents(daySchedules, cell.date)}
                         aria-label={`${daySchedules.length} event${daySchedules.length > 1 ? "s" : ""}`}
-                        className="w-full rounded-md border border-sky-200/40 bg-[#1d4f91] px-1 py-2 text-center text-white shadow-sm transition hover:bg-[#2460ad] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200/70 sm:hidden"
+                        className="w-full rounded-md border border-sky-200/40 bg-[var(--accent)] px-1 py-2 text-center text-white shadow-sm transition hover:bg-[#2460ad] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200/70 sm:hidden"
                       >
                         <span className="block text-white text-lg font-extrabold leading-tight">{daySchedules.length}</span>
                       </button>
@@ -499,7 +516,7 @@ export default function Home() {
                           key={schedule.id}
                           type="button"
                           onClick={() => setSelectedSchedule(schedule)}
-                          className="w-full overflow-hidden rounded-md border border-sky-200/35 bg-[#1d4f91] px-2 py-1 text-left text-xs font-semibold text-white shadow-sm transition hover:bg-[#2460ad] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200/70"
+                          className="w-full overflow-hidden rounded-md border border-sky-200/35 bg-[var(--accent)] px-2 py-1 text-left text-xs font-semibold text-white shadow-sm transition hover:bg-[#2460ad] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200/70"
                           title={`${schedule.subject} (${formatTime(schedule.start_time)} - ${formatTime(
                             schedule.end_time
                           )})`}
@@ -521,7 +538,7 @@ export default function Home() {
           </div>
 
           {!isFetching && schedules.length === 0 && (
-            <div className="mt-5 rounded-2xl border border-[#e6dfd6] bg-[#f7f4ef] px-6 py-8 text-center text-[#4d5d73]">
+            <div className="mt-5 rounded-2xl border border-[var(--line)] bg-[var(--quiet)] px-6 py-8 text-center text-[var(--muted)]">
               No schedules yet for this month.
             </div>
           )}
@@ -540,7 +557,7 @@ export default function Home() {
           onClick={() => setSelectedDayEvents(null)}
         >
           <div
-            className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-white/10 dark:bg-slate-900"
+            className="w-full max-w-lg rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] p-5 text-[var(--ink)] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-start justify-between">
@@ -550,7 +567,7 @@ export default function Home() {
               </div>
               <button
                 type="button"
-                className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
+                className="rounded-full p-1 text-[var(--muted)] hover:bg-[var(--quiet)]"
                 onClick={() => setSelectedDayEvents(null)}
                 aria-label="Close day events"
               >
@@ -567,7 +584,7 @@ export default function Home() {
                     setSelectedDayEvents(null);
                     setSelectedSchedule(schedule);
                   }}
-                  className="w-full rounded-md border border-sky-200/35 bg-[#1d4f91] p-3 text-left text-white shadow-sm transition hover:bg-[#2460ad]"
+                  className="w-full rounded-md border border-sky-200/35 bg-[var(--accent)] p-3 text-left text-white shadow-sm transition hover:bg-[#2460ad]"
                 >
                   <p className="text-sm font-bold">{schedule.subject}</p>
                   <p className="mt-0.5 text-xs text-sky-100/90">
@@ -586,14 +603,14 @@ export default function Home() {
           onClick={() => setSelectedSchedule(null)}
         >
           <div
-            className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-white/10 dark:bg-slate-900"
+            className="w-full max-w-lg rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] p-5 text-[var(--ink)] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-start justify-between">
               <h3 className="pr-2 text-xl font-bold text-slate-900 dark:text-white">{selectedSchedule.subject}</h3>
               <button
                 type="button"
-                className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
+                className="rounded-full p-1 text-[var(--muted)] hover:bg-[var(--quiet)]"
                 onClick={() => setSelectedSchedule(null)}
                 aria-label="Close schedule details"
               >
@@ -616,7 +633,7 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-white/5">
+            <div className="mt-4 rounded-xl border border-[var(--line)] bg-[var(--quiet)] p-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   Attendance Status
@@ -655,6 +672,27 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {composerDate ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#142033]/45 p-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:items-center sm:p-6">
+          <button
+            type="button"
+            className="absolute inset-0"
+            aria-label="Close the class form"
+            onClick={() => setComposerDate(null)}
+          />
+          <div className="relative z-10 w-full max-w-lg">
+            <AdminPanel
+              initialDate={composerDate}
+              onClose={() => setComposerDate(null)}
+              onCreated={() => {
+                setComposerDate(null);
+                fetchSchedules();
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
     </ProfileLayout>
   );
 }

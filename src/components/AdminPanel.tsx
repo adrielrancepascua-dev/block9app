@@ -1,244 +1,216 @@
 "use client";
 
-import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { supabase } from '@/utils/supabase';
-import { useAuth } from '@/context/SupabaseAuthContext';
-import { toast } from 'sonner';
+import React, { useEffect, useState } from "react";
+import { supabase } from "@/utils/supabase";
+import { useAuth } from "@/context/SupabaseAuthContext";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
-// --- Validation Schema ---
-const scheduleSchema = z
-  .object({
-    subject: z.string().min(1, 'Subject name is required').max(100),
-    room: z.string().min(1, 'Room is required').max(50),
-    date: z.string().min(1, 'Date is required'),
-    startTime: z.string().min(1, 'Start time is required'),
-    endTime: z.string().min(1, 'End time is required'),
-  })
-  .refine(
-    (data) => {
-      const start = new Date(`${data.date}T${data.startTime}:00`).getTime();
-      const end = new Date(`${data.date}T${data.endTime}:00`).getTime();
-      return !Number.isNaN(start) && !Number.isNaN(end) && end > start;
-    },
-    {
-      message: 'End time must be after start time',
-      path: ['endTime'],
-    }
-  );
+const LENGTHS = [1, 2, 3, 4] as const;
 
-type ScheduleFormValues = z.infer<typeof scheduleSchema>;
+const todayKey = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+};
 
-// --- Component ---
-export default function AdminPanel() {
-  const [isSubmitting, setIsSubmitting] = useState(false);
+const atLocal = (date: string, time: string) => {
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  return new Date(year, month - 1, day, hour, minute, 0, 0);
+};
+
+export default function AdminPanel({
+  initialDate,
+  onCreated,
+  onClose,
+}: {
+  initialDate?: string;
+  onCreated?: () => void;
+  onClose?: () => void;
+}) {
   const { user } = useAuth();
+  const [subject, setSubject] = useState("");
+  const [room, setRoom] = useState("");
+  const [date, setDate] = useState(initialDate || todayKey());
+  const [startTime, setStartTime] = useState("08:00");
+  const [hours, setHours] = useState<(typeof LENGTHS)[number]>(3);
+  const [weeks, setWeeks] = useState<1 | 4>(1);
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<ScheduleFormValues>({
-    resolver: zodResolver(scheduleSchema),
-  });
+  useEffect(() => {
+    if (initialDate) setDate(initialDate);
+  }, [initialDate]);
 
-  const onSubmit = async (data: ScheduleFormValues) => {
-    setIsSubmitting(true);
-    try {
-      // Construct local date/time values and convert to ISO for Supabase
-      const startDateObj = new Date(`${data.date}T${data.startTime}:00`);
-      const endDateObj = new Date(`${data.date}T${data.endTime}:00`);
-      const startDateTime = startDateObj.toISOString();
-      const endDateTime = endDateObj.toISOString();
-
-      // Insert the new schedule into Supabase
-      const { error } = await supabase
-        .from('schedules')
-        .insert({
-          subject: data.subject,
-          room: data.room,
-          start_time: startDateTime,
-          end_time: endDateTime,
-          created_by: user?.id,
-        });
-
-      if (error) {
-        throw error;
-      }
-
-      // Show success notification
-      toast.success(`"${data.subject}" class has been added successfully!`);
-      
-      // Reset form after successful submission
-      reset();
-    } catch (error: any) {
-      console.error('Failed to create schedule:', error.message);
-      toast.error(`Failed to add schedule: ${error.message || 'Unknown error'}`);
-    } finally {
-      setIsSubmitting(false);
+  const onSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!subject.trim() || !room.trim() || !date || !startTime) {
+      setError("Add the subject, room, day, and start time.");
+      return;
     }
+
+    const firstStart = atLocal(date, startTime);
+    if (Number.isNaN(firstStart.getTime())) {
+      setError("That day or time is not valid.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError("");
+
+    const rows = Array.from({ length: weeks }, (_, week) => {
+      const start = new Date(firstStart);
+      start.setDate(start.getDate() + week * 7);
+      const end = new Date(start.getTime() + hours * 60 * 60 * 1000);
+      return {
+        subject: subject.trim(),
+        room: room.trim(),
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
+        created_by: user?.id,
+      };
+    });
+
+    const { error: insertError } = await supabase.from("schedules").insert(rows);
+    setIsSubmitting(false);
+
+    if (insertError) {
+      setError(insertError.message);
+      toast.error("Could not add that class.");
+      return;
+    }
+
+    toast.success(weeks === 1 ? "Class added." : "Class added for the next 4 weeks.");
+    setSubject("");
+    setRoom("");
+    onCreated?.();
   };
 
   return (
-    <div className="mx-auto w-full max-w-3xl">
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-6">
-        <div className="mb-5">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Add New Schedule
-          </h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Create a new class schedule for students to attend.
+    <form onSubmit={onSubmit} className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-6">
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight text-[var(--ink)]">Add a class</h2>
+          <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
+            Subject, room, and a start time. The length fills in the end.
           </p>
         </div>
+        {onClose ? (
+          <button type="button" onClick={onClose} className="text-sm font-semibold text-[var(--muted)]">
+            Close
+          </button>
+        ) : null}
+      </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
-          {/* Subject Name Input */}
-          <div>
-            <label htmlFor="subject" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Subject Name
-            </label>
-            <input
-              id="subject"
-              type="text"
-              placeholder="e.g. Advanced Mathematics"
-                className={`mt-1 block w-full rounded-lg border bg-white px-3 py-2.5 text-slate-900 shadow-sm focus:outline-none focus:ring-2 dark:bg-slate-900 dark:text-white sm:px-4 ${
-                errors.subject
-                  ? 'border-red-500 focus:border-red-500 focus:ring-red-200 dark:border-red-500/50 dark:focus:ring-red-900'
-                  : 'border-slate-300 focus:border-blue-500 focus:ring-blue-200 dark:border-slate-600 dark:focus:ring-blue-900'
-              }`}
-              {...register('subject')}
-            />
-            {errors.subject && (
-              <p className="mt-1 text-sm text-red-500">{errors.subject.message}</p>
-            )}
-          </div>
+      <div className="space-y-4">
+        <div>
+          <label htmlFor="subject" className="mb-2 block text-sm font-semibold text-[var(--ink)]">
+            Subject
+          </label>
+          <input
+            id="subject"
+            value={subject}
+            onChange={(event) => setSubject(event.target.value)}
+            placeholder="Community Health"
+            className="w-full rounded-xl border border-[var(--line)] bg-[var(--card)] px-4 py-3 text-base text-[var(--ink)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
+          />
+        </div>
 
-          {/* Room Input */}
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label htmlFor="room" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+            <label htmlFor="room" className="mb-2 block text-sm font-semibold text-[var(--ink)]">
               Room
             </label>
             <input
               id="room"
-              type="text"
-              placeholder="e.g. Building A - Room 101"
-                className={`mt-1 block w-full rounded-lg border bg-white px-3 py-2.5 text-slate-900 shadow-sm focus:outline-none focus:ring-2 dark:bg-slate-900 dark:text-white sm:px-4 ${
-                errors.room
-                  ? 'border-red-500 focus:border-red-500 focus:ring-red-200 dark:border-red-500/50 dark:focus:ring-red-900'
-                  : 'border-slate-300 focus:border-blue-500 focus:ring-blue-200 dark:border-slate-600 dark:focus:ring-blue-900'
-              }`}
-              {...register('room')}
+              value={room}
+              onChange={(event) => setRoom(event.target.value)}
+              placeholder="Room 203"
+              className="w-full rounded-xl border border-[var(--line)] bg-[var(--card)] px-4 py-3 text-base text-[var(--ink)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
             />
-            {errors.room && (
-              <p className="mt-1 text-sm text-red-500">{errors.room.message}</p>
-            )}
           </div>
-
-          {/* Date and Time Inputs Group for better layout */}
-          <div className="space-y-4 sm:grid sm:grid-cols-3 sm:gap-6 sm:space-y-0">
-            
-            {/* Date Selection */}
-            <div className="sm:col-span-1">
-              <label htmlFor="date" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Date
-              </label>
-              <input
-                id="date"
-                type="date"
-                className={`mt-1 block w-full rounded-lg border bg-white px-3 py-2.5 text-slate-900 shadow-sm focus:outline-none focus:ring-2 dark:bg-slate-900 dark:text-white sm:px-4 sm:py-3 ${
-                  errors.date
-                    ? 'border-red-500 focus:border-red-500 focus:ring-red-200 dark:border-red-500/50 dark:focus:ring-red-900'
-                    : 'border-slate-300 focus:border-blue-500 focus:ring-blue-200 dark:border-slate-600 dark:focus:ring-blue-900'
-                }`}
-                {...register('date')}
-              />
-              {errors.date && (
-                <p className="mt-1 text-sm text-red-500">{errors.date.message}</p>
-              )}
-            </div>
-
-            {/* Start Time */}
-            <div className="sm:col-span-1">
-              <label htmlFor="startTime" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Start Time
-              </label>
-              <input
-                id="startTime"
-                type="time"
-                className={`mt-1 block w-full rounded-lg border bg-white px-3 py-2.5 text-slate-900 shadow-sm focus:outline-none focus:ring-2 dark:bg-slate-900 dark:text-white sm:px-4 sm:py-3 ${
-                  errors.startTime
-                    ? 'border-red-500 focus:border-red-500 focus:ring-red-200 dark:border-red-500/50 dark:focus:ring-red-900'
-                    : 'border-slate-300 focus:border-blue-500 focus:ring-blue-200 dark:border-slate-600 dark:focus:ring-blue-900'
-                }`}
-                {...register('startTime')}
-              />
-              {errors.startTime && (
-                <p className="mt-1 text-sm text-red-500">{errors.startTime.message}</p>
-              )}
-            </div>
-
-            {/* End Time */}
-            <div className="sm:col-span-1">
-              <label htmlFor="endTime" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                End Time
-              </label>
-              <input
-                id="endTime"
-                type="time"
-                className={`mt-1 block w-full rounded-lg border bg-white px-3 py-2.5 text-slate-900 shadow-sm focus:outline-none focus:ring-2 dark:bg-slate-900 dark:text-white sm:px-4 sm:py-3 ${
-                  errors.endTime
-                    ? 'border-red-500 focus:border-red-500 focus:ring-red-200 dark:border-red-500/50 dark:focus:ring-red-900'
-                    : 'border-slate-300 focus:border-blue-500 focus:ring-blue-200 dark:border-slate-600 dark:focus:ring-blue-900'
-                }`}
-                {...register('endTime')}
-              />
-              {errors.endTime && (
-                <p className="mt-1 text-sm text-red-500">{errors.endTime.message}</p>
-              )}
-            </div>
+          <div>
+            <label htmlFor="class-date" className="mb-2 block text-sm font-semibold text-[var(--ink)]">
+              Day
+            </label>
+            <input
+              id="class-date"
+              type="date"
+              value={date}
+              onChange={(event) => setDate(event.target.value)}
+              className="w-full rounded-xl border border-[var(--line)] bg-[var(--card)] px-4 py-3 text-base text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
+            />
           </div>
+        </div>
 
-          {/* Submit Button */}
-          <div className="pt-2 sm:pt-4">
+        <div>
+          <label htmlFor="start-time" className="mb-2 block text-sm font-semibold text-[var(--ink)]">
+            Starts
+          </label>
+          <input
+            id="start-time"
+            type="time"
+            value={startTime}
+            onChange={(event) => setStartTime(event.target.value)}
+            className="w-full rounded-xl border border-[var(--line)] bg-[var(--card)] px-4 py-3 text-base text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20 sm:max-w-xs"
+          />
+        </div>
+
+        <div>
+          <p className="mb-2 text-sm font-semibold text-[var(--ink)]">Length</p>
+          <div className="grid grid-cols-4 gap-2">
+            {LENGTHS.map((length) => (
+              <button
+                key={length}
+                type="button"
+                onClick={() => setHours(length)}
+                className={`min-h-11 rounded-xl px-1 text-sm font-semibold ${
+                  hours === length
+                    ? "bg-[var(--accent)] text-white"
+                    : "border border-[var(--line)] bg-[var(--quiet)] text-[var(--ink)]"
+                }`}
+              >
+                {length} hour{length === 1 ? "" : "s"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-sm font-semibold text-[var(--ink)]">Repeat</p>
+          <div className="flex flex-wrap gap-2">
             <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex w-full items-center justify-center rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-blue-400 dark:focus:ring-offset-slate-900"
+              type="button"
+              onClick={() => setWeeks(1)}
+              className={`min-h-11 rounded-xl px-4 text-sm font-semibold ${
+                weeks === 1 ? "bg-[var(--accent)] text-white" : "border border-[var(--line)] bg-[var(--quiet)] text-[var(--ink)]"
+              }`}
             >
-              {isSubmitting ? (
-                <>
-                  <svg
-                    className="-ml-1 mr-3 h-5 w-5 animate-spin text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Creating Schedule...
-                </>
-              ) : (
-                'Add Schedule'
-              )}
+              This day
+            </button>
+            <button
+              type="button"
+              onClick={() => setWeeks(4)}
+              className={`min-h-11 rounded-xl px-4 text-sm font-semibold ${
+                weeks === 4 ? "bg-[var(--accent)] text-white" : "border border-[var(--line)] bg-[var(--quiet)] text-[var(--ink)]"
+              }`}
+            >
+              Next 4 weeks
             </button>
           </div>
-        </form>
+        </div>
+
+        {error ? <p className="text-sm text-[#9f2d3a]">{error}</p> : null}
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-white transition hover:bg-[#2460ad] active:scale-[0.98] disabled:opacity-60"
+        >
+          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          {isSubmitting ? "Adding" : weeks === 4 ? "Add 4 classes" : "Add class"}
+        </button>
       </div>
-    </div>
+    </form>
   );
 }
