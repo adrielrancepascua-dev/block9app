@@ -110,6 +110,9 @@ export default function InstallPrompt() {
 
   useEffect(() => {
     registerWorker();
+    const leaveFullscreen = () => {
+      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    };
     const onNative = (event: Event) => {
       event.preventDefault();
       setPromptEvent(event as BeforeInstallPromptEvent);
@@ -118,9 +121,12 @@ export default function InstallPrompt() {
       setInstalled(true);
       setPromptEvent(null);
     };
+    leaveFullscreen();
+    document.addEventListener("fullscreenchange", leaveFullscreen);
     window.addEventListener("beforeinstallprompt", onNative);
     window.addEventListener("appinstalled", onInstalled);
     return () => {
+      document.removeEventListener("fullscreenchange", leaveFullscreen);
       window.removeEventListener("beforeinstallprompt", onNative);
       window.removeEventListener("appinstalled", onInstalled);
     };
@@ -171,7 +177,7 @@ export default function InstallPrompt() {
     try {
       await promptEvent.prompt();
       const choice = await promptEvent.userChoice;
-      if (choice.outcome === "accepted") setMode(null);
+      if (choice.outcome === "accepted") setInstalled(true);
       setPromptEvent(null);
     } finally {
       setInstalling(false);
