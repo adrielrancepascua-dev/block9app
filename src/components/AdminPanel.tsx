@@ -49,18 +49,17 @@ function WheelColumn({
   const valueRef = useRef(value);
   const onSelectRef = useRef(onSelect);
   const [active, setActive] = useState(() => Math.max(0, items.findIndex((item) => item.value === value)));
-  itemsRef.current = items;
-  valueRef.current = value;
-  onSelectRef.current = onSelect;
 
   useEffect(() => {
+    itemsRef.current = items;
+    valueRef.current = value;
+    onSelectRef.current = onSelect;
     const scroller = scrollerRef.current;
     if (!scroller) return;
     const index = Math.max(0, items.findIndex((item) => item.value === value));
     const target = index * WHEEL_ITEM;
     if (Math.abs(scroller.scrollTop - target) > 2) scroller.scrollTop = target;
-    setActive(index);
-  }, [items, value]);
+  }, [items, onSelect, value]);
 
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -159,12 +158,6 @@ function TimeChoice({
   const shownHour = hour || pendingHour;
   const shownMinute = minute || pendingMinute;
 
-  useEffect(() => {
-    if (value) return;
-    setPendingHour("");
-    setPendingMinute("");
-  }, [value]);
-
   const publish = (nextHour: string, nextMinute: string) => {
     setPendingHour(nextHour);
     setPendingMinute(nextMinute);
@@ -246,11 +239,6 @@ export default function AdminPanel({
   const [weeks, setWeeks] = useState<1 | 4>(1);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (schedule) return;
-    setDate(initialDate || "");
-  }, [initialDate, schedule]);
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
