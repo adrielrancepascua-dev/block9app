@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/utils/supabase";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import { toast } from "sonner";
@@ -24,6 +24,125 @@ const hourLabel = (hour: number) => {
 const fieldClass =
   "w-full rounded-xl border border-[var(--line)] bg-[var(--card)] px-4 py-3 text-base text-[var(--ink)] outline-none placeholder:text-[color-mix(in_srgb,var(--muted)_45%,transparent)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20";
 
+const WHEEL_ITEM = 44;
+
+function wheelItems(current: string, base: { value: string; label: string }[], blank: string) {
+  if (!current || base.some((item) => item.value === current)) return [{ value: "", label: blank }, ...base];
+  const extra = { value: current, label: current };
+  return [{ value: "", label: blank }, extra, ...base];
+}
+
+function WheelColumn({
+  label,
+  items,
+  value,
+  onSelect,
+}: {
+  label: string;
+  items: { value: string; label: string }[];
+  value: string;
+  onSelect: (next: string) => void;
+}) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const touchedRef = useRef(false);
+  const itemsRef = useRef(items);
+  const valueRef = useRef(value);
+  const onSelectRef = useRef(onSelect);
+  const [active, setActive] = useState(() => Math.max(0, items.findIndex((item) => item.value === value)));
+  itemsRef.current = items;
+  valueRef.current = value;
+  onSelectRef.current = onSelect;
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const index = Math.max(0, items.findIndex((item) => item.value === value));
+    const target = index * WHEEL_ITEM;
+    if (Math.abs(scroller.scrollTop - target) > 2) scroller.scrollTop = target;
+    setActive(index);
+  }, [items, value]);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    let timer = 0;
+    const commit = () => {
+      if (!touchedRef.current) return;
+      const list = itemsRef.current;
+      const index = Math.min(list.length - 1, Math.max(0, Math.round(scroller.scrollTop / WHEEL_ITEM)));
+      const next = list[index]?.value ?? "";
+      if (next !== valueRef.current) onSelectRef.current(next);
+    };
+    const onScroll = () => {
+      const list = itemsRef.current;
+      setActive(Math.min(list.length - 1, Math.max(0, Math.round(scroller.scrollTop / WHEEL_ITEM))));
+      window.clearTimeout(timer);
+      timer = window.setTimeout(commit, 90);
+    };
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    scroller.addEventListener("scrollend", commit);
+    return () => {
+      window.clearTimeout(timer);
+      scroller.removeEventListener("scroll", onScroll);
+      scroller.removeEventListener("scrollend", commit);
+    };
+  }, []);
+
+  const move = (direction: number) => {
+    touchedRef.current = true;
+    const current = Math.max(0, items.findIndex((item) => item.value === value));
+    const next = Math.min(items.length - 1, Math.max(0, current + direction));
+    onSelect(items[next]?.value ?? "");
+  };
+
+  return (
+    <div className="min-w-0">
+      <div
+        ref={scrollerRef}
+        tabIndex={0}
+        role="listbox"
+        aria-label={label}
+        onPointerDown={() => {
+          touchedRef.current = true;
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+          event.preventDefault();
+          move(event.key === "ArrowDown" ? 1 : -1);
+        }}
+        className="h-[132px] touch-pan-y snap-y snap-mandatory overflow-y-auto overscroll-contain rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={{
+          maskImage: "linear-gradient(to bottom, transparent 0%, black 28%, black 72%, transparent 100%)",
+          WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, black 28%, black 72%, transparent 100%)",
+        }}
+      >
+        <div className="h-11 shrink-0" aria-hidden="true" />
+        {items.map((item, index) => {
+          const selected = index === active;
+          return (
+            <button
+              key={`${item.value}-${item.label}`}
+              type="button"
+              role="option"
+              aria-selected={selected}
+              className={`flex h-11 w-full snap-center items-center justify-center text-sm font-semibold tabular-nums ${
+                selected ? "text-white" : "text-[var(--muted)]"
+              }`}
+              onClick={() => {
+                touchedRef.current = true;
+                onSelect(item.value);
+              }}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+        <div className="h-11 shrink-0" aria-hidden="true" />
+      </div>
+    </div>
+  );
+}
+
 function TimeChoice({
   id,
   value,
@@ -34,80 +153,51 @@ function TimeChoice({
   onChange: (next: string) => void;
 }) {
   const [pendingHour, setPendingHour] = useState("");
-  const [open, setOpen] = useState<"hour" | "minute" | null>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
+  const [pendingMinute, setPendingMinute] = useState("");
   const hour = value.length >= 2 ? value.slice(0, 2) : "";
   const minute = value.length >= 5 ? value.slice(3, 5) : "";
   const shownHour = hour || pendingHour;
+  const shownMinute = minute || pendingMinute;
 
   useEffect(() => {
-    if (!value) setPendingHour("");
+    if (value) return;
+    setPendingHour("");
+    setPendingMinute("");
   }, [value]);
 
-  useEffect(() => {
-    if (!open) return;
-    panelRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
-  }, [open]);
-
-  const chooseHour = (nextHour: string) => {
+  const publish = (nextHour: string, nextMinute: string) => {
     setPendingHour(nextHour);
-    onChange(nextHour && minute ? `${nextHour}:${minute}` : "");
-    setOpen(minute ? null : "minute");
+    setPendingMinute(nextMinute);
+    onChange(nextHour && nextMinute ? `${nextHour}:${nextMinute}` : "");
   };
 
-  const chooseMinute = (nextMinute: string) => {
-    if (!shownHour) {
-      setOpen("hour");
-      return;
-    }
-    onChange(`${shownHour}:${nextMinute}`);
-    setOpen(null);
-  };
-
-  const choiceClass = (active: boolean) =>
-    `min-h-11 whitespace-nowrap rounded-xl border px-1 text-sm font-semibold tabular-nums ${
-      active ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--line)] bg-[var(--card)] text-[var(--ink)]"
-    }`;
+  const hours = useMemo(
+    () =>
+      wheelItems(
+        shownHour,
+        HOURS.map((item) => ({ value: String(item).padStart(2, "0"), label: hourLabel(item) })),
+        "Hour"
+      ),
+    [shownHour]
+  );
+  const minutes = useMemo(
+    () =>
+      wheelItems(
+        shownMinute,
+        MINUTES.map((item) => {
+          const key = String(item).padStart(2, "0");
+          return { value: key, label: key };
+        }),
+        "Min"
+      ),
+    [shownMinute]
+  );
 
   return (
-    <div>
-      <div className="grid grid-cols-2 gap-2">
-        <button type="button" className={choiceClass(open === "hour")} onClick={() => setOpen(open === "hour" ? null : "hour")}>
-          {shownHour ? hourLabel(Number(shownHour)) : "Hour"}
-        </button>
-        <button
-          type="button"
-          id={id}
-          className={choiceClass(open === "minute")}
-          onClick={() => setOpen(open === "minute" ? null : "minute")}
-        >
-          {minute || "Min"}
-        </button>
-      </div>
-      {open === "hour" ? (
-        <div ref={panelRef} className="mt-2 grid grid-cols-4 gap-2" style={{ scrollMarginBottom: "6.5rem" }}>
-          {HOURS.map((item) => {
-            const key = String(item).padStart(2, "0");
-            return (
-              <button key={key} type="button" onClick={() => chooseHour(key)} className={choiceClass(shownHour === key)}>
-                {hourLabel(item)}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-      {open === "minute" ? (
-        <div ref={panelRef} className="mt-2 grid grid-cols-4 gap-2" style={{ scrollMarginBottom: "6.5rem" }}>
-          {MINUTES.map((item) => {
-            const key = String(item).padStart(2, "0");
-            return (
-              <button key={key} type="button" onClick={() => chooseMinute(key)} className={`${choiceClass(minute === key)} tabular-nums`}>
-                {key}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
+    <div id={id} className="relative grid grid-cols-2 gap-2 rounded-2xl border border-[var(--line)] bg-[var(--card)] px-1 py-1">
+      <div className="pointer-events-none absolute inset-x-2 top-1/2 h-11 -translate-y-1/2 rounded-xl bg-[var(--accent)]" aria-hidden="true" />
+      <WheelColumn label="Hour" items={hours} value={shownHour} onSelect={(next) => publish(next, shownMinute)} />
+      <WheelColumn label="Minute" items={minutes} value={shownMinute} onSelect={(next) => publish(shownHour, next)} />
     </div>
   );
 }
