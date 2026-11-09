@@ -66,7 +66,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} ${noteHand.variable} font-sans antialiased`}>
         <Script id="block9-theme" strategy="beforeInteractive">
-          {`(function(){try{var t=localStorage.getItem("block9-theme")||"system";var d=t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);document.documentElement.style.colorScheme=d?"dark":"light";var c=d?"#101c2e":"#f7f4ef";var nodes=document.querySelectorAll('meta[name="theme-color"]');if(!nodes.length){var m=document.createElement("meta");m.name="theme-color";m.content=c;document.head.appendChild(m);}else{nodes.forEach(function(n){n.setAttribute("content",c);n.removeAttribute("media");});}}catch(e){}})();`}
+          {`(function(){try{var t=localStorage.getItem("block9-theme")||"system";var d=t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);document.documentElement.style.colorScheme=d?"dark":"light";document.documentElement.style.backgroundColor=d?"#101c2e":"#f7f4ef";var c="#101c2e";var nodes=document.querySelectorAll('meta[name="theme-color"]');if(!nodes.length){var m=document.createElement("meta");m.name="theme-color";m.content=c;document.head.appendChild(m);}else{nodes.forEach(function(n){n.setAttribute("content",c);n.removeAttribute("media");});}}catch(e){}})();`}
         </Script>
         <ThemeProvider>
         <AuthProvider>

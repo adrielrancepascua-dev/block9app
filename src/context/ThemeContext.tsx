@@ -21,9 +21,10 @@ export function applyTheme(theme: ThemeChoice) {
   const dark = theme === "dark" || (theme === "system" && systemDark);
   document.documentElement.classList.toggle("dark", dark);
   document.documentElement.style.colorScheme = dark ? "dark" : "light";
-  const color = dark ? "#101c2e" : "#f7f4ef";
+  document.documentElement.style.backgroundColor = dark ? "#101c2e" : "#f7f4ef";
   document.querySelectorAll('meta[name="theme-color"]').forEach((node) => {
-    node.setAttribute("content", color);
+    node.setAttribute("content", "#101c2e");
+    node.removeAttribute("media");
   });
 }
 
