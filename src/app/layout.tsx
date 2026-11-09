@@ -8,7 +8,6 @@ import { Toaster } from 'sonner';
 import EnvWarning from '@/components/EnvWarning';
 import NameGate from "@/components/NameGate";
 import InstallPrompt from "@/components/InstallPrompt";
-import PhoneChrome from "@/components/PhoneChrome";
 import { ThemeProvider } from "@/context/ThemeContext";
 import startupImages from "@/lib/pwa-splash.json";
 
@@ -74,7 +73,6 @@ export default function RootLayout({
             <Navbar />
             {process.env.NODE_ENV !== "production" && <EnvWarning />}
             {children}
-            <PhoneChrome />
             <InstallPrompt />
             <Toaster position="top-center" richColors />
           </NameGate>

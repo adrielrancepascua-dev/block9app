@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { Share, X } from "lucide-react";
@@ -14,6 +14,15 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 const DISMISS_KEY = "block9-install-dismissed";
+
+function dismissedPaths() {
+  try {
+    const stored = JSON.parse(sessionStorage.getItem(DISMISS_KEY) || "[]");
+    return Array.isArray(stored) ? stored.filter((item) => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
 function isStandalone() {
   const nav = navigator as Navigator & { standalone?: boolean };
@@ -32,6 +41,21 @@ function isIos() {
 function isIosSafari() {
   const ua = navigator.userAgent;
   return isIos() && /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo|GSA/.test(ua);
+}
+
+function detectMode(): InstallMode | "installed" {
+  if (isStandalone()) return "installed";
+  if (isIos()) return isIosSafari() ? "ios-safari" : "ios-other";
+  return "manual";
+}
+
+function emptySubscribe() {
+  return () => {};
+}
+
+function subscribeDismiss(onChange: () => void) {
+  window.addEventListener("block9-install-dismiss", onChange);
+  return () => window.removeEventListener("block9-install-dismiss", onChange);
 }
 
 let workerBooted = false;
@@ -72,32 +96,30 @@ export default function InstallPrompt() {
   const pathname = usePathname();
   const { user, profile } = useAuth();
   const panelRef = useRef<HTMLElement>(null);
-  const [mode, setMode] = useState<InstallMode | null>(null);
   const [promptEvent, setPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
+  const [installed, setInstalled] = useState(false);
   const [installing, setInstalling] = useState(false);
+  const detected = useSyncExternalStore(emptySubscribe, detectMode, () => "server" as const);
+  const dismissedKey = useSyncExternalStore(subscribeDismiss, () => dismissedPaths().join("\n"), () => "");
+  const dismissed = dismissedKey ? dismissedKey.split("\n") : [];
+  const mode: InstallMode | null =
+    installed || detected === "server" || detected === "installed" ? null : promptEvent ? "native" : detected;
   const onAuth = pathname === "/login" || pathname === "/register" || pathname === "/welcome";
   const navVisible = Boolean(user && profile?.name_confirmed === true) && !onAuth;
+  const visible = Boolean(mode) && !dismissed.includes(pathname);
 
   useEffect(() => {
     registerWorker();
-    if (isStandalone()) return;
-    if (sessionStorage.getItem(DISMISS_KEY) === "1") return;
-
     const onNative = (event: Event) => {
       event.preventDefault();
       setPromptEvent(event as BeforeInstallPromptEvent);
-      setMode("native");
     };
     const onInstalled = () => {
-      setMode(null);
+      setInstalled(true);
       setPromptEvent(null);
     };
     window.addEventListener("beforeinstallprompt", onNative);
     window.addEventListener("appinstalled", onInstalled);
-
-    if (isIos()) setMode(isIosSafari() ? "ios-safari" : "ios-other");
-    else if (/Android/i.test(navigator.userAgent)) setMode("manual");
-
     return () => {
       window.removeEventListener("beforeinstallprompt", onNative);
       window.removeEventListener("appinstalled", onInstalled);
@@ -106,7 +128,7 @@ export default function InstallPrompt() {
 
   useLayoutEffect(() => {
     const node = panelRef.current;
-    if (!mode || !node) {
+    if (!visible || !node) {
       document.documentElement.style.removeProperty("--install-prompt-bottom");
       document.documentElement.style.removeProperty("--install-prompt-inset");
       return;
@@ -133,13 +155,14 @@ export default function InstallPrompt() {
       document.documentElement.style.removeProperty("--install-prompt-bottom");
       document.documentElement.style.removeProperty("--install-prompt-inset");
     };
-  }, [mode, navVisible, pathname]);
+  }, [visible, navVisible, pathname]);
 
-  if (!mode) return null;
+  if (!visible) return null;
 
   const dismiss = () => {
-    sessionStorage.setItem(DISMISS_KEY, "1");
-    setMode(null);
+    const next = [...new Set([...dismissed, pathname])];
+    sessionStorage.setItem(DISMISS_KEY, JSON.stringify(next));
+    window.dispatchEvent(new Event("block9-install-dismiss"));
   };
 
   const install = async () => {
@@ -183,7 +206,7 @@ export default function InstallPrompt() {
             ) : mode === "ios-other" ? (
               "This browser can’t add it to the Home Screen. Open this page in Safari, tap Share, then Add to Home Screen."
             ) : (
-              "Open the browser menu and tap Install app or Add to Home screen. It opens full screen, with no address bar."
+              "Open the browser menu and choose Install app or Add to Home screen. It opens full screen after that."
             )}
           </p>
           {mode === "native" ? (
