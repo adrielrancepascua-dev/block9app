@@ -31,8 +31,8 @@ export default function ProfileLayout({
       <main
         className={`relative z-10 mx-auto flex w-full max-w-6xl flex-col ${
           fill
-            ? "h-[100dvh] px-3 pt-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-5 md:h-[calc(100dvh-4rem)] md:px-8 md:pt-4 md:pb-4"
-            : "min-h-[100dvh] px-5 pt-7 pb-[calc(8rem+env(safe-area-inset-bottom))] sm:px-8 sm:pt-10 sm:pb-12"
+            ? "h-[100dvh] px-3 pt-[max(0.75rem,var(--install-prompt-bottom,0px))] pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-5 md:h-[calc(100dvh-4rem)] md:px-8 md:pt-[max(1rem,var(--install-prompt-inset,0px))] md:pb-4"
+            : "min-h-[100dvh] px-5 pt-[max(1.75rem,var(--install-prompt-bottom,0px))] pb-[calc(8rem+env(safe-area-inset-bottom))] sm:px-8 sm:pt-[max(2.5rem,var(--install-prompt-inset,0px))] sm:pb-12"
         }`}
       >
         <div

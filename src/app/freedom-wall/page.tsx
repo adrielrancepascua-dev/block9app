@@ -23,7 +23,7 @@ export default function FreedomWallPage() {
   }
 
   return (
-    <div className="fixed inset-0 z-10 md:pt-16">
+    <div className="fixed inset-0 z-10 pt-[var(--install-prompt-bottom,0px)] md:pt-[max(4rem,var(--install-prompt-bottom,0px))]">
       <FreedomWall />
     </div>
   );

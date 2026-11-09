@@ -11,7 +11,7 @@ export function AuthScreen({
   children: ReactNode;
 }) {
   return (
-    <div className="relative flex min-h-[100dvh] items-center justify-center overflow-x-hidden px-8 py-[max(3.5rem,env(safe-area-inset-top))] pb-[max(3.5rem,env(safe-area-inset-bottom))] sm:px-10">
+    <div className="relative flex min-h-[100dvh] items-center justify-center overflow-x-hidden px-8 pt-[max(3.5rem,var(--install-prompt-bottom,env(safe-area-inset-top)))] pb-[max(3.5rem,env(safe-area-inset-bottom))] sm:px-10">
       <AuthBackdrop />
       <div
         className="auth-card relative z-10 w-full max-w-[21rem] rounded-[1.6rem] px-6 py-8 text-white sm:max-w-[23rem] sm:px-8 sm:py-10"

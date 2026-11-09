@@ -21,6 +21,10 @@ export function applyTheme(theme: ThemeChoice) {
   const dark = theme === "dark" || (theme === "system" && systemDark);
   document.documentElement.classList.toggle("dark", dark);
   document.documentElement.style.colorScheme = dark ? "dark" : "light";
+  const color = dark ? "#07111f" : "#f4f7fb";
+  document.querySelectorAll('meta[name="theme-color"]').forEach((node) => {
+    node.setAttribute("content", color);
+  });
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {

@@ -7,7 +7,9 @@ import Navbar from "@/components/Navbar";
 import { Toaster } from 'sonner';
 import EnvWarning from '@/components/EnvWarning';
 import NameGate from "@/components/NameGate";
+import InstallPrompt from "@/components/InstallPrompt";
 import { ThemeProvider } from "@/context/ThemeContext";
+import startupImages from "@/lib/pwa-splash.json";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,19 +29,34 @@ const noteHand = Caveat({
 export const metadata: Metadata = {
   title: "Block9 - Class Schedule Tracker",
   description: "Manage your class schedules and attendance seamlessly",
+  applicationName: "Block 9",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Block9",
+    title: "Block 9",
+    startupImage: startupImages,
   },
   formatDetection: {
     telephone: false,
   },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  other: {
+    "apple-mobile-web-app-capable": "yes",
+  },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#2563eb",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f4f7fb" },
+    { media: "(prefers-color-scheme: dark)", color: "#07111f" },
+  ],
 };
 
 export default function RootLayout({
@@ -51,7 +68,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} ${noteHand.variable} font-sans antialiased`}>
         <Script id="block9-theme" strategy="beforeInteractive">
-          {`(function(){try{var t=localStorage.getItem("block9-theme")||"system";var d=t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);document.documentElement.style.colorScheme=d?"dark":"light";}catch(e){}})();`}
+          {`(function(){try{var t=localStorage.getItem("block9-theme")||"system";var d=t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);document.documentElement.style.colorScheme=d?"dark":"light";var c=d?"#07111f":"#f4f7fb";document.querySelectorAll('meta[name="theme-color"]').forEach(function(n){n.setAttribute("content",c);});}catch(e){}})();`}
         </Script>
         <ThemeProvider>
         <AuthProvider>
@@ -59,6 +76,7 @@ export default function RootLayout({
             <Navbar />
             {process.env.NODE_ENV !== "production" && <EnvWarning />}
             {children}
+            <InstallPrompt />
             <Toaster position="top-center" richColors />
           </NameGate>
         </AuthProvider>
