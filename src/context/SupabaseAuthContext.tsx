@@ -22,8 +22,9 @@ interface AuthContextType {
   loading: boolean;
   profileReady: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
+  signInWithGoogle: (nextPath?: string) => Promise<void>;
   updateDisplayName: (name: string) => Promise<void>;
+  finishAccount: (details: { name: string; email: string; password: string }) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -35,6 +36,7 @@ const AuthContext = createContext<AuthContextType>({
   signIn: async () => {},
   signInWithGoogle: async () => {},
   updateDisplayName: async () => {},
+  finishAccount: async () => {},
   signOut: async () => {},
 });
 
@@ -223,8 +225,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  const signInWithGoogle = async () => {
-    const redirectTo = `${window.location.origin}/`;
+  const signInWithGoogle = async (nextPath = "/") => {
+    const safePath = nextPath.startsWith("/") ? nextPath : "/";
+    const redirectTo = `${window.location.origin}${safePath}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -272,6 +275,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setProfileReady(true);
   };
 
+  const finishAccount = async ({
+    name,
+    email,
+    password,
+  }: {
+    name: string;
+    email: string;
+    password: string;
+  }) => {
+    if (!user) {
+      throw new Error("Sign in with Google before finishing your account.");
+    }
+
+    const nextEmail = email.trim().toLowerCase();
+    const currentEmail = user.email?.trim().toLowerCase() ?? "";
+    const { error: passwordError } = await supabase.auth.updateUser({ password });
+    if (passwordError) {
+      throw passwordError;
+    }
+
+    if (nextEmail && nextEmail !== currentEmail) {
+      const { error: emailError } = await supabase.auth.updateUser({ email: nextEmail });
+      if (emailError) {
+        throw emailError;
+      }
+    }
+
+    await updateDisplayName(name);
+  };
+
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -299,7 +332,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, profileReady, signIn, signInWithGoogle, updateDisplayName, signOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, profileReady, signIn, signInWithGoogle, updateDisplayName, finishAccount, signOut }}>
       {children}
     </AuthContext.Provider>
   );

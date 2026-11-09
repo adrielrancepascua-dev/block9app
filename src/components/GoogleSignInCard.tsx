@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import { AuthScreen, AuthSwitch, GoogleButton } from "@/components/auth-ui";
 
@@ -10,23 +10,28 @@ export default function GoogleSignInCard({
   prompt,
   href,
   linkLabel,
+  nextPath = "/",
+  autoStart = false,
 }: {
   subtitle: string;
   buttonLabel: string;
   prompt: string;
   href: string;
   linkLabel: string;
+  nextPath?: string;
+  autoStart?: boolean;
 }) {
   const { signInWithGoogle } = useAuth();
   const [error, setError] = useState("");
-  const [pending, setPending] = useState(false);
+  const [pending, setPending] = useState(autoStart);
+  const startedRef = useRef(false);
 
   const start = async () => {
     setError("");
     setPending(true);
 
     try {
-      await signInWithGoogle();
+      await signInWithGoogle(nextPath);
     } catch (err: unknown) {
       setPending(false);
       const message = err instanceof Error ? err.message : "Could not open Google.";
@@ -41,6 +46,12 @@ export default function GoogleSignInCard({
       setError(message);
     }
   };
+
+  useEffect(() => {
+    if (!autoStart || startedRef.current) return;
+    startedRef.current = true;
+    void start();
+  }, [autoStart]);
 
   return (
     <AuthScreen subtitle={subtitle}>
