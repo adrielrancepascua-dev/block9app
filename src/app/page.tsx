@@ -8,6 +8,7 @@ import ProfileLayout from "@/components/ProfileLayout";
 import AdminPanel from "@/components/AdminPanel";
 import DayClassSheet, { type SheetPhase } from "@/components/DayClassSheet";
 import { supabase } from "@/utils/supabase";
+import { toast } from "sonner";
 import AppLoading from "@/components/AppLoading";
 
 interface Schedule {
@@ -48,7 +49,7 @@ const buildMonthGrid = (year: number, month: number): DayCell[] => {
 };
 
 export default function Home() {
-  const { user, profile, loading, signOut } = useAuth();
+  const { user, profile, loading } = useAuth();
   const router = useRouter();
 
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -57,6 +58,7 @@ export default function Home() {
   const [selectedDay, setSelectedDay] = useState<{ key: string; dateLabel: string; schedules: Schedule[] } | null>(null);
   const [sheetPhase, setSheetPhase] = useState<SheetPhase>("closed");
   const [composerOpen, setComposerOpen] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [overlayReady, setOverlayReady] = useState(false);
 
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
@@ -172,6 +174,21 @@ export default function Home() {
     setViewMonth(now.getMonth());
   };
 
+  const removeSchedule = async (scheduleId: string) => {
+    const { error } = await supabase.from("schedules").delete().eq("id", scheduleId);
+    if (error) {
+      toast.error("Could not delete that class.");
+      return;
+    }
+    setSchedules((current) => current.filter((item) => item.id !== scheduleId));
+    setSelectedDay((current) =>
+      current
+        ? { ...current, schedules: current.schedules.filter((item) => item.id !== scheduleId) }
+        : current
+    );
+    toast.success("Class deleted.");
+  };
+
   const openDay = (cell: DayCell) => {
     setSelectedDay({
       key: cell.key,
@@ -212,30 +229,19 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            {profile?.role === "admin" && (
-              <>
-                <button
-                  onClick={() => setComposerOpen(true)}
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2460ad] active:scale-[0.98]"
-                >
-                  Add a class
-                </button>
-                <button
-                  onClick={() => router.push("/admin")}
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--ink)] shadow-sm transition hover:bg-[var(--quiet)] active:scale-[0.98]"
-                >
-                  All classes
-                </button>
-              </>
-            )}
-            <button
-              onClick={signOut}
-              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--ink)] shadow-sm transition hover:bg-[var(--quiet)] active:scale-[0.98]"
-            >
-              Sign out
-            </button>
-          </div>
+          {profile?.role === "admin" ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => {
+                  setEditingSchedule(null);
+                  setComposerOpen(true);
+                }}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#2460ad] active:scale-[0.98]"
+              >
+                Add a class
+              </button>
+            </div>
+          ) : null}
         </div>
 
         {fetchError && (
@@ -342,6 +348,13 @@ export default function Home() {
               onClose={() => setSheetPhase("closed")}
               onExpand={() => setSheetPhase("expanded")}
               onCollapse={() => setSheetPhase("peek")}
+              canManage={profile?.role === "admin"}
+              onEdit={(item) => {
+                setEditingSchedule(item);
+                setSheetPhase("closed");
+                setComposerOpen(true);
+              }}
+              onDelete={(item) => void removeSchedule(item.id)}
             />,
             document.body
           )
@@ -354,13 +367,22 @@ export default function Home() {
                 type="button"
                 className="absolute inset-0"
                 aria-label="Close the class form"
-                onClick={() => setComposerOpen(false)}
+                onClick={() => {
+                  setComposerOpen(false);
+                  setEditingSchedule(null);
+                }}
               />
               <div className="relative z-10 max-h-[min(92dvh,760px)] w-full max-w-lg overflow-y-auto">
                 <AdminPanel
-                  onClose={() => setComposerOpen(false)}
+                  key={editingSchedule?.id ?? "new"}
+                  schedule={editingSchedule}
+                  onClose={() => {
+                    setComposerOpen(false);
+                    setEditingSchedule(null);
+                  }}
                   onCreated={() => {
                     setComposerOpen(false);
+                    setEditingSchedule(null);
                     fetchSchedules();
                   }}
                 />

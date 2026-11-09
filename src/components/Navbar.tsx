@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/SupabaseAuthContext";
-import { Home, MessageCircle, MessageSquare, Settings, ShieldAlert } from "lucide-react";
+import { Home, MessageCircle, MessageSquare, Settings } from "lucide-react";
 
 interface NavItem {
   label: string;
@@ -46,16 +46,6 @@ export default function Navbar() {
       href: "/settings",
       icon: <Settings className="h-5 w-5" strokeWidth={1.75} />,
     },
-    ...(profile?.role === "admin"
-      ? [
-          {
-            label: "Admin",
-            shortLabel: "Admin",
-            href: "/admin",
-            icon: <ShieldAlert className="h-5 w-5" strokeWidth={1.75} />,
-          },
-        ]
-      : []),
   ];
 
   // Check if route is active

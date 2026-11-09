@@ -112,33 +112,55 @@ function TimeChoice({
   );
 }
 
+const toDateInput = (iso: string) => {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+};
+
+const toTimeInput = (iso: string | null) => {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+};
+
+export interface EditableSchedule {
+  id: string;
+  subject: string;
+  room: string;
+  start_time: string;
+  end_time: string | null;
+}
+
 export default function AdminPanel({
   initialDate,
+  schedule,
   onCreated,
   onClose,
 }: {
   initialDate?: string;
+  schedule?: EditableSchedule | null;
   onCreated?: () => void;
   onClose?: () => void;
 }) {
   const { user } = useAuth();
-  const [subject, setSubject] = useState("");
-  const [room, setRoom] = useState("");
-  const [date, setDate] = useState(initialDate || "");
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
+  const editing = Boolean(schedule);
+  const [subject, setSubject] = useState(schedule?.subject ?? "");
+  const [room, setRoom] = useState(schedule?.room ?? "");
+  const [date, setDate] = useState(schedule ? toDateInput(schedule.start_time) : initialDate || "");
+  const [startTime, setStartTime] = useState(schedule ? toTimeInput(schedule.start_time) : "");
+  const [endTime, setEndTime] = useState(schedule ? toTimeInput(schedule.end_time) : "");
   const [weeks, setWeeks] = useState<1 | 4>(1);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    if (schedule) return;
     setDate(initialDate || "");
-    setSubject("");
-    setRoom("");
-    setStartTime("");
-    setEndTime("");
-    setError("");
-  }, [initialDate]);
+  }, [initialDate, schedule]);
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -170,6 +192,27 @@ export default function AdminPanel({
     setError("");
 
     const duration = firstEnd ? firstEnd.getTime() - firstStart.getTime() : null;
+    if (schedule) {
+      const { error: updateError } = await supabase
+        .from("schedules")
+        .update({
+          subject: subject.trim(),
+          room: room.trim(),
+          start_time: firstStart.toISOString(),
+          end_time: firstEnd ? firstEnd.toISOString() : null,
+        })
+        .eq("id", schedule.id);
+      setIsSubmitting(false);
+      if (updateError) {
+        setError(updateError.message);
+        toast.error("Could not update that class.");
+        return;
+      }
+      toast.success("Class updated.");
+      onCreated?.();
+      return;
+    }
+
     const rows = Array.from({ length: weeks }, (_, week) => {
       const start = new Date(firstStart);
       start.setDate(start.getDate() + week * 7);
@@ -203,9 +246,9 @@ export default function AdminPanel({
     <form onSubmit={onSubmit} className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] p-4 text-[var(--ink)] sm:p-6">
       <div className="sticky top-0 z-10 mb-5 flex items-start justify-between gap-4 bg-[var(--surface)] pb-2">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Add a class</h2>
+          <h2 className="text-2xl font-semibold tracking-tight">{editing ? "Edit class" : "Add a class"}</h2>
           <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
-            Leave the end time empty when dismissal is not set yet.
+            {editing ? "Change this class, or leave the end time empty." : "Leave the end time empty when dismissal is not set yet."}
           </p>
         </div>
         {onClose ? (
@@ -254,6 +297,7 @@ export default function AdminPanel({
           </div>
         </div>
 
+        {editing ? null : (
         <div>
           <p className="mb-2 text-sm font-semibold">Repeat</p>
           <div className="flex flex-wrap gap-2">
@@ -277,6 +321,7 @@ export default function AdminPanel({
             </button>
           </div>
         </div>
+        )}
 
         {error ? <p className="text-sm text-[#9f2d3a]">{error}</p> : null}
 
@@ -286,7 +331,7 @@ export default function AdminPanel({
           className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-white transition hover:bg-[#2460ad] active:scale-[0.98] disabled:opacity-60"
         >
           {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          {isSubmitting ? "Adding" : weeks === 4 ? "Add 4 classes" : "Add class"}
+          {isSubmitting ? (editing ? "Saving" : "Adding") : editing ? "Save class" : weeks === 4 ? "Add 4 classes" : "Add class"}
         </button>
       </div>
     </form>

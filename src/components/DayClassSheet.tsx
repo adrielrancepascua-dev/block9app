@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ChevronUp, Clock3, MapPin } from "lucide-react";
+import { ChevronUp, Clock3, MapPin, Pencil, Trash2 } from "lucide-react";
 
 export type SheetPhase = "closed" | "peek" | "expanded";
 
@@ -25,7 +25,7 @@ const formatTime = (timeStr?: string | null) => {
 const formatSpan = (start?: string | null, end?: string | null) => {
   const startLabel = formatTime(start);
   const endLabel = formatTime(end);
-  if (!endLabel) return startLabel ? `${startLabel} · Dismissal not set` : "Time not set";
+  if (!endLabel) return startLabel || "Time not set";
   return `${startLabel} - ${endLabel}`;
 };
 
@@ -43,6 +43,9 @@ export default function DayClassSheet({
   onClose,
   onExpand,
   onCollapse,
+  canManage = false,
+  onEdit,
+  onDelete,
 }: {
   phase: SheetPhase;
   dateLabel: string;
@@ -50,12 +53,16 @@ export default function DayClassSheet({
   onClose: () => void;
   onExpand: () => void;
   onCollapse: () => void;
+  canManage?: boolean;
+  onEdit?: (item: ClassItem) => void;
+  onDelete?: (item: ClassItem) => void;
 }) {
   const dragZoneRef = useRef<HTMLDivElement>(null);
   const [dragY, setDragY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [hasEntered, setHasEntered] = useState(false);
   const [height, setHeight] = useState(() => sheetHeight(classes.length));
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [navOffset, setNavOffset] = useState(0);
   const heightRef = useRef(height);
   const dragYRef = useRef(0);
@@ -264,7 +271,29 @@ export default function DayClassSheet({
               <div className="mt-3 space-y-2">
                 {classes.map((item) => (
                   <div key={item.id} className="rounded-xl border border-[var(--line)] bg-[var(--quiet)] px-3 py-3">
-                    <p className="text-base font-semibold">{item.subject}</p>
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-base font-semibold">{item.subject}</p>
+                      {canManage ? (
+                        <span className="flex shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            aria-label={`Edit ${item.subject}`}
+                            onClick={() => onEdit?.(item)}
+                            className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--ink)] hover:bg-[var(--surface)]"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Delete ${item.subject}`}
+                            onClick={() => setPendingDeleteId(item.id)}
+                            className="flex h-8 w-8 items-center justify-center rounded-full text-[#9f2d3a] hover:bg-[var(--surface)]"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </span>
+                      ) : null}
+                    </div>
                     <p className="mt-1 flex items-center gap-1.5 text-sm text-[var(--muted)]">
                       <Clock3 className="h-3.5 w-3.5" />
                       {formatSpan(item.start_time, item.end_time)}
@@ -273,6 +302,27 @@ export default function DayClassSheet({
                       <MapPin className="h-3.5 w-3.5" />
                       {item.room || "Room not set"}
                     </p>
+                    {canManage && pendingDeleteId === item.id ? (
+                      <div className="mt-3 flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPendingDeleteId(null)}
+                          className="min-h-9 rounded-lg px-3 text-sm font-semibold text-[var(--muted)]"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPendingDeleteId(null);
+                            onDelete?.(item);
+                          }}
+                          className="min-h-9 rounded-lg bg-[#9f2d3a] px-3 text-sm font-semibold text-white"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>

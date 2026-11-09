@@ -12,7 +12,7 @@ import { ImageIcon, Save, Upload, UserRound, X } from "lucide-react";
 import AppLoading from "@/components/AppLoading";
 
 export default function SettingsPage() {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
   const router = useRouter();
 
@@ -327,6 +327,14 @@ export default function SettingsPage() {
         >
           <Save className="h-4 w-4" />
           {isSaving ? "Saving" : "Save"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => void signOut()}
+          className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--ink)]"
+        >
+          Sign out
         </button>
       </div>
     </ProfileLayout>
