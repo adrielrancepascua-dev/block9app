@@ -21,7 +21,7 @@ export default function ProfileLayout({
   const bgUrl = customBgUrl || profile?.custom_bg_url || CLASS_PHOTO;
 
   return (
-    <div className="relative min-h-[100dvh] w-full text-[var(--ink)]">
+    <div className={`relative w-full text-[var(--ink)] ${fill ? "flex min-h-0 flex-1 flex-col" : "min-h-[100dvh]"}`}>
       <div
         className="pointer-events-none fixed inset-0 z-[-10] bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: `url('${bgUrl}')` }}
@@ -31,7 +31,7 @@ export default function ProfileLayout({
       <main
         className={`relative z-10 mx-auto flex w-full max-w-6xl flex-col ${
           fill
-            ? "h-[100dvh] px-3 pt-3 pb-[calc(4.7rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-5 sm:pb-6"
+            ? "h-[100dvh] px-3 pt-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-5 md:h-[calc(100dvh-4rem)] md:px-8 md:pt-4 md:pb-4"
             : "min-h-[100dvh] px-5 pt-7 pb-[calc(8rem+env(safe-area-inset-bottom))] sm:px-8 sm:pt-10 sm:pb-12"
         }`}
       >

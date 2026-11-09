@@ -217,9 +217,9 @@ export default function Home() {
   }
 
   return (
-    <ProfileLayout containerClassName="max-w-6xl md:flex md:min-h-[calc(100dvh-9.5rem)] md:flex-col">
-      <div className="flex w-full flex-1 flex-col">
-        <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
+    <ProfileLayout fill containerClassName="max-w-6xl">
+      <div className="flex min-h-0 w-full flex-1 flex-col">
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-[var(--ink)] sm:text-3xl">
               Hi, {profile?.name || "Student"}
@@ -250,7 +250,7 @@ export default function Home() {
           </div>
         )}
 
-        <div className="flex flex-1 flex-col rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] p-3 shadow-[0_1px_2px_rgba(20,32,51,0.04)] sm:p-5">
+        <div className="flex min-h-0 flex-1 flex-col rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] p-3 shadow-[0_1px_2px_rgba(20,32,51,0.04)] sm:p-5">
           <div className="mb-3 flex items-center justify-between gap-2">
             <button
               type="button"
@@ -284,7 +284,7 @@ export default function Home() {
               </div>
             ))}
           </div>
-          <div className="grid flex-1 grid-cols-7 md:grid-rows-6">
+          <div className="grid min-h-0 flex-1 grid-cols-7 grid-rows-6">
             {monthGrid.map((cell) => {
               const daySchedules = schedulesByDay[cell.key] || [];
               const isToday = toDateKey(cell.date) === toDateKey(new Date());
@@ -301,10 +301,10 @@ export default function Home() {
                       ? `${cell.date.getDate()}, ${daySchedules.length} class${daySchedules.length === 1 ? "" : "es"}`
                       : String(cell.date.getDate())
                   }
-                  className="flex h-12 flex-col items-center justify-center md:h-full md:min-h-16"
+                  className="flex h-full min-h-0 flex-col items-center justify-center"
                 >
                   <span
-                    className={`flex h-8 w-8 items-center justify-center rounded-full text-[13px] font-semibold md:h-12 md:w-12 md:text-lg ${
+                    className={`flex h-[clamp(2rem,5.5vh,3.25rem)] w-[clamp(2rem,5.5vh,3.25rem)] items-center justify-center rounded-full text-[clamp(0.8rem,2vh,1.25rem)] font-semibold ${
                       isToday || hasClasses
                         ? "bg-[var(--accent)] text-white"
                         : cell.inCurrentMonth
