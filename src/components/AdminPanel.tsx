@@ -243,10 +243,10 @@ export default function AdminPanel({
   };
 
   return (
-    <form onSubmit={onSubmit} className="rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] p-4 text-[var(--ink)] sm:p-6">
-      <div className="sticky top-0 z-10 mb-5 flex items-start justify-between gap-4 bg-[var(--surface)] pb-2">
+    <form onSubmit={onSubmit} className="bg-[var(--surface)] text-[var(--ink)]">
+      <div className="sticky top-0 z-10 flex items-start justify-between gap-4 bg-[var(--surface)] px-4 pt-4 pb-3 sm:px-6 sm:pt-6">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">{editing ? "Edit class" : "Add a class"}</h2>
+          <h2 className="text-pretty text-2xl font-semibold tracking-tight">{editing ? "Edit class" : "Add a class"}</h2>
           <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
             {editing ? "Change this class, or leave the end time empty." : "Leave the end time empty when dismissal is not set yet."}
           </p>
@@ -255,15 +255,15 @@ export default function AdminPanel({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-2 text-[var(--muted)] hover:bg-[var(--quiet)]"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--muted)] hover:bg-[var(--quiet)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
             aria-label="Close"
           >
-            <X className="h-5 w-5" />
+            <X aria-hidden="true" className="h-5 w-5" />
           </button>
         ) : null}
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4 px-4 pb-4 sm:px-6 sm:pb-6">
         <div>
           <label htmlFor="subject" className="mb-2 block text-sm font-semibold">
             Subject

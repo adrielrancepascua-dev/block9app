@@ -363,7 +363,7 @@ export default function Home() {
 
       {overlayReady && composerOpen
         ? createPortal(
-            <div className="fixed inset-0 z-[80] flex items-end justify-center bg-[#142033]/50 sm:items-center sm:p-6">
+            <div className="fixed inset-0 z-[80] flex items-end justify-center overflow-hidden bg-[#142033]/50 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-center sm:p-6">
               <button
                 type="button"
                 className="absolute inset-0"
@@ -373,7 +373,8 @@ export default function Home() {
                   setEditingSchedule(null);
                 }}
               />
-              <div className="relative z-10 max-h-[min(92dvh,760px)] w-full max-w-lg overflow-y-auto">
+              <div className="relative z-10 flex min-h-0 max-h-full w-full max-w-lg flex-col overflow-hidden rounded-[1.5rem] border border-[var(--line)] bg-[var(--surface)] shadow-[0_24px_60px_rgba(7,17,31,0.35)]">
+                <div className="min-h-0 overflow-y-auto overscroll-contain">
                 <AdminPanel
                   key={editingSchedule?.id ?? "new"}
                   schedule={editingSchedule}
@@ -387,6 +388,7 @@ export default function Home() {
                     fetchSchedules();
                   }}
                 />
+                </div>
               </div>
             </div>,
             document.body
