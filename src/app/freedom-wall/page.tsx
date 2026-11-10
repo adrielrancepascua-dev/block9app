@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import FreedomWall from "@/components/FreedomWall";
 import AppLoading from "@/components/AppLoading";
+import ChromeTint from "@/components/ChromeTint";
 
 export default function FreedomWallPage() {
   const { user, loading } = useAuth();
@@ -24,6 +25,7 @@ export default function FreedomWallPage() {
 
   return (
     <div className="fixed inset-0 z-10 pt-[var(--install-prompt-bottom,0px)] md:pt-[max(4rem,var(--install-prompt-bottom,0px))]">
+      <ChromeTint source="#c07a3d" />
       <FreedomWall />
     </div>
   );

@@ -219,10 +219,10 @@ export default function Home() {
   return (
     <ProfileLayout fill containerClassName="max-w-6xl">
       <div className="flex min-h-0 w-full flex-1 flex-col">
-        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="mb-3 flex flex-col gap-3 px-4 pt-3 sm:flex-row sm:items-end sm:justify-between md:px-0 md:pt-0">
           <div>
             <h1
-              className="text-2xl font-semibold tracking-tight text-[var(--ink)] sm:text-3xl"
+              className="text-2xl font-semibold tracking-tight text-white drop-shadow-[0_1px_10px_rgba(7,17,31,0.65)] sm:text-3xl"
               aria-busy={profile?.name?.trim() ? undefined : true}
             >
               {profile?.name?.trim() ? (
@@ -231,7 +231,7 @@ export default function Home() {
                 <span className="inline-block h-8 w-48 rounded-lg bg-[var(--quiet)] motion-safe:animate-pulse" aria-hidden="true" />
               )}
             </h1>
-            <p className="mt-1 max-w-md text-sm leading-relaxed text-[var(--muted)]">
+            <p className="mt-1 max-w-md text-sm leading-relaxed text-white/85 drop-shadow-[0_1px_8px_rgba(7,17,31,0.55)]">
               Tap a day. Swipe the preview up for the room and the time.
             </p>
           </div>
@@ -257,7 +257,7 @@ export default function Home() {
           </div>
         )}
 
-        <div className="flex min-h-0 flex-1 flex-col rounded-[1.4rem] border border-[var(--line)] bg-[var(--surface)] p-3 shadow-[0_1px_2px_rgba(20,32,51,0.04)] sm:p-5">
+        <div className="flex min-h-0 flex-1 flex-col rounded-t-[1.6rem] border border-[var(--line)] border-b-0 bg-[color-mix(in_srgb,var(--surface)_90%,transparent)] p-3 shadow-[0_-16px_40px_rgba(7,17,31,0.2)] backdrop-blur-xl sm:p-5 md:rounded-[1.4rem] md:border-b">
           <div className="mb-3 flex items-center justify-between gap-2">
             <button
               type="button"

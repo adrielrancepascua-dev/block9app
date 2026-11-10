@@ -3,6 +3,7 @@
 import { ReactNode } from "react";
 import { useAuth } from "@/context/SupabaseAuthContext";
 import { CLASS_PHOTO } from "@/utils/brand";
+import ChromeTint from "@/components/ChromeTint";
 
 export default function ProfileLayout({
   children,
@@ -21,12 +22,23 @@ export default function ProfileLayout({
   const bgUrl = customBgUrl || profile?.custom_bg_url || CLASS_PHOTO;
 
   return (
-    <div className={`relative w-full text-[var(--ink)] ${fill ? "flex min-h-0 flex-1 flex-col" : "min-h-[100dvh]"}`}>
+    <div className={`relative isolate w-full text-[var(--ink)] ${fill ? "flex min-h-0 flex-1 flex-col" : "min-h-[100dvh]"}`}>
+      <ChromeTint source={bgUrl} />
       <div
-        className="pointer-events-none fixed inset-0 z-[-10] bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: `url('${bgUrl}')` }}
+        className="pointer-events-none fixed inset-0 bg-no-repeat"
+        style={{
+          backgroundImage: `url('${bgUrl}')`,
+          backgroundSize: "auto 230%",
+          backgroundPosition: "center 78%",
+        }}
       />
-      <div className="pointer-events-none fixed inset-0 z-[-9] bg-[#07111f]/22" />
+      <div
+        className="pointer-events-none fixed inset-0"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(7,17,31,0.42) 0%, rgba(7,17,31,0.18) 22%, rgba(7,17,31,0.12) 48%, rgba(7,17,31,0.5) 100%)",
+        }}
+      />
 
       <main
         className={`relative z-10 mx-auto flex w-full max-w-6xl flex-col ${
@@ -36,10 +48,10 @@ export default function ProfileLayout({
         }`}
       >
         <div
-          className={`mx-auto w-full ${widthClass} bg-[var(--card)] text-[var(--ink)] ${
+          className={`mx-auto w-full ${widthClass} text-[var(--ink)] ${
             fill
-              ? "flex min-h-0 flex-1 flex-col rounded-none border-0 p-4 shadow-none md:rounded-[1.75rem] md:border md:border-[var(--line)] md:shadow-[0_1px_2px_rgba(20,32,51,0.05),0_22px_50px_rgba(20,32,51,0.14)]"
-              : "rounded-[1.75rem] border border-[var(--line)] p-5 shadow-[0_1px_2px_rgba(20,32,51,0.05),0_22px_50px_rgba(20,32,51,0.14)] sm:p-8"
+              ? "flex min-h-0 flex-1 flex-col"
+              : "rounded-[1.75rem] border border-[var(--line)] bg-[var(--card)] p-5 shadow-[0_1px_2px_rgba(20,32,51,0.05),0_22px_50px_rgba(20,32,51,0.14)] sm:p-8"
           }`}
         >
           {children}

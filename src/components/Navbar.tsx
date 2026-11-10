@@ -62,7 +62,10 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--line)] bg-[var(--nav)] pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_rgba(20,32,51,0.08)] backdrop-blur-md md:hidden">
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--line)] bg-[var(--nav)] pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_rgba(20,32,51,0.08)] backdrop-blur-md md:hidden"
+        style={{ backgroundColor: "color-mix(in srgb, var(--nav) 86%, var(--chrome, var(--nav)))" }}
+      >
         <div className="mx-auto flex max-w-lg items-stretch justify-around px-2 pt-1.5">
           {navItems.map((item) => {
             const active = isActive(item.href);
